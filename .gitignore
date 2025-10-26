@@ -1,0 +1,7 @@
+model/
+tsc_grpo_saved_lora/
+unsloth_compiled_cache/
+outputs_tsc/
+grpo_trainer_lora_model/
+data_TSC/
+.venv/
