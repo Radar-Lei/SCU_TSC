@@ -5,3 +5,7 @@ outputs_tsc/
 grpo_trainer_lora_model/
 data_TSC/
 .venv/
+xformers/
+__pycache__/
+llama.cpp/
+upload_model_to_hub.py
