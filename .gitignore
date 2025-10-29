@@ -9,3 +9,4 @@ xformers/
 __pycache__/
 llama.cpp/
 upload_model_to_hub.py
+*.log
