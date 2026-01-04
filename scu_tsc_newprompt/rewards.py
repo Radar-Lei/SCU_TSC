@@ -134,7 +134,7 @@ def score_constraints_and_format(
     # 扣除 bounds 惩罚（权重 0.5）
     # 最低分 0.5（格式和顺序正确的保底分）
     base_score = 1.0
-    constraint_penalty = 1.5 * bounds_penalty
+    constraint_penalty = 5 * bounds_penalty
     final_score = max(0.5, base_score - constraint_penalty)
     
     return final_score, info, plan
