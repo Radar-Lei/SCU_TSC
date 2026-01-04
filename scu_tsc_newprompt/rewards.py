@@ -1,6 +1,8 @@
 import json
+import math
 import re
-from dataclasses import dataclass
+from collections import deque
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -55,37 +57,38 @@ def score_constraints_and_format(
     completion_text: str,
     phase_order: List[int],
     phase_limits: Dict[str, Dict[str, int]],
+    D0: float = 30.0,  # 软约束归一化尺度（秒）
 ) -> Tuple[float, Dict[str, Any], Optional[List[Dict[str, int]]]]:
     """
-    Returns: (score 0..1, info dict, parsed plan or None)
+    Returns: (score in [-1.5, 0], info dict, parsed plan or None)
     
-    硬约束（无法执行）：
-    - 格式错误（无法解析 JSON）
-    - 相位数量不匹配
-    - 相位顺序错误
+    硬约束（无法执行，返回强负分 + plan=None）：
+    - 格式错误（无法解析 JSON）→ -1.5
+    - 相位数量不匹配 → -1.5
+    - 相位顺序错误 → -1.2
     
-    软约束（可执行但扣分）：
-    - phase_limits 越界：根据偏离量计算惩罚（min_green / max_green）
+    软约束（可执行，返回 [-1, 0] 惩罚）：
+    - phase_limits 越界：R_c = -clip(deviation_sec / D0, 0, 1)
     """
     info: Dict[str, Any] = {
         "format_ok": False,
         "order_ok": False,
         "bounds_ok": False,
-        "bounds_penalty": 0.0,
+        "bounds_deviation_sec": 0.0,
         "error": None,
     }
 
     parsed = parse_plan_from_completion(completion_text)
     if parsed.error:
         info["error"] = parsed.error
-        return 0.0, info, None
+        return -1.5, info, None  # 硬约束：格式错误
     assert parsed.plan is not None
 
     plan = parsed.plan
     n = len(phase_order)
     if len(plan) != n:
         info["error"] = "wrong_length"
-        return 0.0, info, None
+        return -1.5, info, None  # 硬约束：长度错误
 
     # format ok (strict keys & ints already checked)
     info["format_ok"] = True
@@ -94,7 +97,7 @@ def score_constraints_and_format(
     out_phase_ids = [x["phase_id"] for x in plan]
     if out_phase_ids != phase_order:
         info["error"] = "bad_order"
-        return 0.1, info, None  # 格式正确但顺序错，无法执行
+        return -1.2, info, None  # 硬约束：顺序错误（格式对但不可执行）
     
     info["order_ok"] = True
 
@@ -102,7 +105,6 @@ def score_constraints_and_format(
     
     # bounds check (软约束)
     total_bounds_deviation = 0.0  # 总偏离秒数
-    max_possible_deviation = 0.0  # 用于归一化
     
     for x in plan:
         pid = x["phase_id"]
@@ -119,23 +121,13 @@ def score_constraints_and_format(
             total_bounds_deviation += (mn - val)
         elif val > mx:
             total_bounds_deviation += (val - mx)
-        
-        # 最大可能偏离 = max(val 可能的偏离)
-        max_possible_deviation += max(mx, 120)  # 假设最大可能值是 120 秒
     
-    # 归一化 bounds 惩罚到 [0, 1]
-    # 使用 soft 函数：deviation 越大，惩罚越大，但不会超过 1
-    bounds_penalty = min(1.0, total_bounds_deviation / max(60.0, max_possible_deviation * 0.3))
-    info["bounds_penalty"] = bounds_penalty
+    info["bounds_deviation_sec"] = total_bounds_deviation
     info["bounds_ok"] = (total_bounds_deviation == 0)
     
-    # 计算最终分数
-    # 基础分 = 1.0（格式和顺序都正确）
-    # 扣除 bounds 惩罚（权重 0.5）
-    # 最低分 0.5（格式和顺序正确的保底分）
-    base_score = 1.0
-    constraint_penalty = 5 * bounds_penalty
-    final_score = max(0.5, base_score - constraint_penalty)
+    # 软约束惩罚：R_c = -clip(deviation / D0, 0, 1)，范围 [-1, 0]
+    constraint_penalty = min(1.0, total_bounds_deviation / D0)
+    final_score = -constraint_penalty  # 满足约束时为 0，越界越负
     
     return final_score, info, plan
 
@@ -143,11 +135,14 @@ def score_constraints_and_format(
 def compute_soft_constraint_reward(
     plan: List[Dict[str, int]],
     phase_limits: Dict[str, Dict[str, int]],
+    D0: float = 30.0,
 ) -> Tuple[float, Dict[str, Any]]:
     """
     单独计算软约束的 reward（用于仿真后的额外评估）。
     只检查 min_green / max_green 边界约束。
     返回 (reward, info)，reward 在 [-1, 0] 范围，0 表示完全满足约束。
+    
+    使用 clip 方式：R_c = -clip(deviation_sec / D0, 0, 1)
     """
     info = {
         "bounds_deviation_sec": 0.0,
@@ -171,8 +166,152 @@ def compute_soft_constraint_reward(
     
     info["bounds_deviation_sec"] = total_bounds_deviation
     
-    # 计算惩罚 reward（负值）
-    # 每偏离 10 秒，惩罚 0.1
-    penalty_reward = -min(1.0, total_bounds_deviation / 100.0)
+    # 软约束惩罚：R_c = -clip(deviation / D0, 0, 1)
+    penalty_reward = -min(1.0, total_bounds_deviation / D0)
     
     return penalty_reward, info
+
+
+# ==================== 自适应尺度器（按路口维护 P95）====================
+
+
+@dataclass
+class MetricBuffer:
+    """单个指标的滑动窗口缓冲区"""
+    values: deque = field(default_factory=lambda: deque(maxlen=200))
+    scale: float = 1.0  # 当前 P95 尺度
+    
+    def add(self, v: float):
+        self.values.append(v)
+        self._update_scale()
+    
+    def add_batch(self, vs: List[float]):
+        for v in vs:
+            self.values.append(v)
+        self._update_scale()
+    
+    def _update_scale(self):
+        if len(self.values) < 5:
+            return  # 数据太少，保持默认
+        sorted_vals = sorted(self.values)
+        idx = int(len(sorted_vals) * 0.95)
+        idx = min(idx, len(sorted_vals) - 1)
+        p95 = sorted_vals[idx]
+        self.scale = max(1.0, p95)  # 至少为 1，防止除零
+
+
+@dataclass
+class AdaptiveScaler:
+    """
+    按路口 (tl_id) 维护 passed / queue / total_queue_proxy 的 P95 尺度。
+    用于归一化仿真指标，使不同路口的 reward 具有可比性。
+    """
+    passed_buf: MetricBuffer = field(default_factory=MetricBuffer)
+    queue_buf: MetricBuffer = field(default_factory=MetricBuffer)
+    proxy_buf: MetricBuffer = field(default_factory=MetricBuffer)
+    
+    # 默认尺度（用于首次评估/冷启动）
+    default_passed_scale: float = 20.0
+    default_queue_scale: float = 30.0
+    default_proxy_scale: float = 2000.0
+    
+    def add_observation(self, passed: float, queue: float, proxy: float):
+        """添加一次评估观测"""
+        self.passed_buf.add(passed)
+        self.queue_buf.add(queue)
+        self.proxy_buf.add(proxy)
+    
+    def add_observations_batch(self, results: List[Dict[str, float]]):
+        """批量添加多个评估结果"""
+        for r in results:
+            self.passed_buf.add(r.get('passed_vehicles', 0.0))
+            self.queue_buf.add(r.get('queue_vehicles', 0.0))
+            self.proxy_buf.add(r.get('total_queue_proxy', 0.0))
+    
+    def get_scales(self) -> Tuple[float, float, float]:
+        """返回 (passed_scale, queue_scale, proxy_scale)"""
+        p = self.passed_buf.scale if len(self.passed_buf.values) >= 5 else self.default_passed_scale
+        q = self.queue_buf.scale if len(self.queue_buf.values) >= 5 else self.default_queue_scale
+        z = self.proxy_buf.scale if len(self.proxy_buf.values) >= 5 else self.default_proxy_scale
+        return (p, q, z)
+    
+    def warmup_from_results(self, results: List[Dict[str, float]]):
+        """用 warmup 阶段的数据初始化尺度"""
+        self.add_observations_batch(results)
+
+
+def compute_sim_reward_adaptive(
+    result: Dict[str, float],
+    scaler: AdaptiveScaler,
+    baseline_result: Optional[Dict[str, float]] = None,
+    w_passed: float = 1.0,
+    w_queue: float = 1.0,
+    w_proxy: float = 0.2,
+) -> Tuple[float, Dict[str, Any]]:
+    """
+    计算仿真 reward（自适应尺度 + 相对改进）。
+    
+    Args:
+        result: 当前 plan 的仿真结果
+        scaler: 该路口的 AdaptiveScaler
+        baseline_result: 上一周期 best_plan 的仿真结果（用于相对改进）
+        w_passed / w_queue / w_proxy: 各指标权重
+    
+    Returns:
+        (sim_reward, info_dict)
+        sim_reward 大致在 [-2, 2] 范围（归一化后）
+    """
+    P0, Q0, Z0 = scaler.get_scales()
+    
+    passed = result.get('passed_vehicles', 0.0)
+    queue = result.get('queue_vehicles', 0.0)
+    proxy = result.get('total_queue_proxy', 0.0)
+    
+    # 相对改进：如果有 baseline，用差值
+    if baseline_result is not None:
+        passed_delta = passed - baseline_result.get('passed_vehicles', 0.0)
+        queue_delta = queue - baseline_result.get('queue_vehicles', 0.0)
+        proxy_delta = proxy - baseline_result.get('total_queue_proxy', 0.0)
+    else:
+        # 无 baseline 时用绝对值
+        passed_delta = passed
+        queue_delta = queue
+        proxy_delta = proxy
+    
+    # tanh 归一化到 [-1, 1] 区间
+    R_passed = math.tanh(passed_delta / P0)        # passed 越多越好 → 正
+    R_queue = -math.tanh(queue_delta / Q0)         # queue 越多越差 → 负
+    R_proxy = -math.tanh(proxy_delta / Z0)         # proxy 越大越差 → 负
+    
+    # 加权求和
+    sim_reward = w_passed * R_passed + w_queue * R_queue + w_proxy * R_proxy
+    
+    info = {
+        'passed': passed,
+        'queue': queue,
+        'proxy': proxy,
+        'passed_delta': passed_delta if baseline_result else None,
+        'queue_delta': queue_delta if baseline_result else None,
+        'proxy_delta': proxy_delta if baseline_result else None,
+        'scales': (P0, Q0, Z0),
+        'R_passed': R_passed,
+        'R_queue': R_queue,
+        'R_proxy': R_proxy,
+    }
+    
+    return sim_reward, info
+
+
+def compute_total_reward(
+    constraint_score: float,
+    sim_reward: float,
+    w_sim: float = 1.0,
+    w_constraint: float = 0.3,
+) -> float:
+    """
+    计算总 reward = w_sim * sim_reward + w_constraint * constraint_score
+    
+    constraint_score: [-1.5, 0]（硬约束更负，满足软约束为 0）
+    sim_reward: 大致 [-2, 2]（取决于 tanh 归一化）
+    """
+    return w_sim * sim_reward + w_constraint * constraint_score
