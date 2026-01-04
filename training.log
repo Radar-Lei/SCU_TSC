@@ -13659,3 +13659,102 @@ Warmup completed. Starting real-time simulation.
 [DEBUG step=0 gen=3] constraint_score=-0.00 error=None
   bounds_deviation_sec=0.0
   completion='[{"phase_id":1,"final":50},{"phase_id":2,"final":48},{"phase_id":3,"final":42},{"phase_id":4,"final":68},{"phase_id":5,"final":45},{"phase_id":6,"final":18},{"phase_id":7,"final":44},{"phase_id":8,"final":115},{"phase_id":9,"final":55},{"phase_id":10,"final":50}]'
+已完成训练的组合数: 137
+已完成的前几个: [('arterial4x4_935', 'nt13'), ('arterial4x4_26', 'nt11'), ('arterial4x4_31', 'nt11'), ('arterial4x4_704', 'nt12'), ('arterial4x4_1387', 'nt1')]
+配置跳过的交叉口: ['nt12']
+
+=== [1/5000] arterial4x4_1139/nt13 ===
+DEBUG: 使用的 SUMO 路径是: /usr/share/sumo/bin/sumo
+Starting SUMO with command: /usr/share/sumo/bin/sumo -c /home/samuel/unsloth_dgx/workspace/SCU_TSC/sumo_simulation/environments/arterial4x4_1139/arterial4x4.sumocfg --step-length 1.0 --no-warnings true --start
+ Retrying in 1 seconds
+Successfully connected to SUMO
+Starting warmup phase...
+Warmup progress: 0/300
+Warmup progress: 100/300
+Warmup progress: 200/300
+Warmup completed. Starting real-time simulation.
+
+[DEBUG step=0 gen=0] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":78},{"phase_id":2,"final":48},{"phase_id":3,"final":69},{"phase_id":4,"final":44},{"phase_id":5,"final":45},{"phase_id":6,"final":21},{"phase_id":7,"final":19},{"phase_id":8,"final":32},{"phase_id":9,"final":34},{"phase_id":10,"final":83}]'
+
+[DEBUG step=0 gen=1] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":72},{"phase_id":2,"final":55},{"phase_id":3,"final":63},{"phase_id":4,"final":60},{"phase_id":5,"final":30},{"phase_id":6,"final":26},{"phase_id":7,"final":19},{"phase_id":8,"final":34},{"phase_id":9,"final":37},{"phase_id":10,"final":68}]'
+
+[DEBUG step=0 gen=2] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":67},{"phase_id":2,"final":56},{"phase_id":3,"final":75},{"phase_id":4,"final":34},{"phase_id":5,"final":42},{"phase_id":6,"final":25},{"phase_id":7,"final":18},{"phase_id":8,"final":31},{"phase_id":9,"final":35},{"phase_id":10,"final":83}]'
+
+[DEBUG step=0 gen=3] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":67},{"phase_id":2,"final":57},{"phase_id":3,"final":80},{"phase_id":4,"final":53},{"phase_id":5,"final":38},{"phase_id":6,"final":23},{"phase_id":7,"final":19},{"phase_id":8,"final":32},{"phase_id":9,"final":33},{"phase_id":10,"final":69}]'
+Unsloth: Will smartly offload gradients to save VRAM!
+[arterial4x4_1139/nt13] step 2/10 loss=0.0140 mean_r=-0.061 std=0.153 valid=4/4 best_c=-0.00 best_sim=0.08 scales=(6.0,11.0,3811)
+
+[DEBUG step=2 gen=0] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":28},{"phase_id":2,"final":72},{"phase_id":3,"final":53},{"phase_id":4,"final":33},{"phase_id":5,"final":29},{"phase_id":6,"final":57},{"phase_id":7,"final":44},{"phase_id":8,"final":39},{"phase_id":9,"final":45},{"phase_id":10,"final":71}]'
+
+[DEBUG step=2 gen=1] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":28},{"phase_id":2,"final":67},{"phase_id":3,"final":59},{"phase_id":4,"final":46},{"phase_id":5,"final":32},{"phase_id":6,"final":62},{"phase_id":7,"final":48},{"phase_id":8,"final":30},{"phase_id":9,"final":76},{"phase_id":10,"final":69}]'
+
+[DEBUG step=2 gen=2] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":28},{"phase_id":2,"final":86},{"phase_id":3,"final":72},{"phase_id":4,"final":44},{"phase_id":5,"final":30},{"phase_id":6,"final":65},{"phase_id":7,"final":47},{"phase_id":8,"final":39},{"phase_id":9,"final":81},{"phase_id":10,"final":89}]'
+
+[DEBUG step=2 gen=3] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":28},{"phase_id":2,"final":78},{"phase_id":3,"final":65},{"phase_id":4,"final":36},{"phase_id":5,"final":30},{"phase_id":6,"final":55},{"phase_id":7,"final":50},{"phase_id":8,"final":44},{"phase_id":9,"final":68},{"phase_id":10,"final":81}]'
+[arterial4x4_1139/nt13] step 4/10 loss=-0.0888 mean_r=-0.041 std=0.150 valid=4/4 best_c=-0.00 best_sim=0.17 scales=(32.0,39.0,21781)
+
+[DEBUG step=4 gen=0] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":72},{"phase_id":2,"final":63},{"phase_id":3,"final":61},{"phase_id":4,"final":42},{"phase_id":5,"final":55},{"phase_id":6,"final":57},{"phase_id":7,"final":50},{"phase_id":8,"final":76},{"phase_id":9,"final":47},{"phase_id":10,"final":73}]'
+
+[DEBUG step=4 gen=1] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":65},{"phase_id":2,"final":82},{"phase_id":3,"final":49},{"phase_id":4,"final":37},{"phase_id":5,"final":41},{"phase_id":6,"final":76},{"phase_id":7,"final":70},{"phase_id":8,"final":86},{"phase_id":9,"final":57},{"phase_id":10,"final":61}]'
+
+[DEBUG step=4 gen=2] constraint_score=-0.27 error=None
+  bounds_deviation_sec=8.0
+  completion='[{"phase_id":1,"final":60},{"phase_id":2,"final":62},{"phase_id":3,"final":58},{"phase_id":4,"final":55},{"phase_id":5,"final":67},{"phase_id":6,"final":65},{"phase_id":7,"final":70},{"phase_id":8,"final":75},{"phase_id":9,"final":50},{"phase_id":10,"final":60}]'
+
+[DEBUG step=4 gen=3] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":63},{"phase_id":2,"final":68},{"phase_id":3,"final":59},{"phase_id":4,"final":41},{"phase_id":5,"final":57},{"phase_id":6,"final":65},{"phase_id":7,"final":52},{"phase_id":8,"final":83},{"phase_id":9,"final":63},{"phase_id":10,"final":58}]'
+[arterial4x4_1139/nt13] step 6/10 loss=-0.0009 mean_r=-0.167 std=0.134 valid=4/4 best_c=-0.00 best_sim=0.02 scales=(46.0,53.0,23612)
+
+[DEBUG step=6 gen=0] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":70},{"phase_id":2,"final":41},{"phase_id":3,"final":51},{"phase_id":4,"final":61},{"phase_id":5,"final":55},{"phase_id":6,"final":85},{"phase_id":7,"final":79},{"phase_id":8,"final":101},{"phase_id":9,"final":94},{"phase_id":10,"final":104}]'
+
+[DEBUG step=6 gen=1] constraint_score=-0.10 error=None
+  bounds_deviation_sec=3.0
+  completion='[{"phase_id":1,"final":78},{"phase_id":2,"final":34},{"phase_id":3,"final":50},{"phase_id":4,"final":45},{"phase_id":5,"final":51},{"phase_id":6,"final":88},{"phase_id":7,"final":70},{"phase_id":8,"final":93},{"phase_id":9,"final":77},{"phase_id":10,"final":80}]'
+
+[DEBUG step=6 gen=2] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":60},{"phase_id":2,"final":36},{"phase_id":3,"final":42},{"phase_id":4,"final":57},{"phase_id":5,"final":50},{"phase_id":6,"final":70},{"phase_id":7,"final":73},{"phase_id":8,"final":55},{"phase_id":9,"final":65},{"phase_id":10,"final":88}]'
+
+[DEBUG step=6 gen=3] constraint_score=-0.17 error=None
+  bounds_deviation_sec=5.0
+  completion='[{"phase_id":1,"final":68},{"phase_id":2,"final":34},{"phase_id":3,"final":53},{"phase_id":4,"final":58},{"phase_id":5,"final":58},{"phase_id":6,"final":84},{"phase_id":7,"final":71},{"phase_id":8,"final":93},{"phase_id":9,"final":73},{"phase_id":10,"final":100}]'
+[arterial4x4_1139/nt13] step 8/10 loss=0.0221 mean_r=-0.175 std=0.158 valid=4/4 best_c=-0.00 best_sim=-0.00 scales=(55.0,56.0,33828)
+
+[DEBUG step=8 gen=0] constraint_score=-0.10 error=None
+  bounds_deviation_sec=3.0
+  completion='[{"phase_id":1,"final":40},{"phase_id":2,"final":47},{"phase_id":3,"final":75},{"phase_id":4,"final":46},{"phase_id":5,"final":37},{"phase_id":6,"final":71},{"phase_id":7,"final":47},{"phase_id":8,"final":26},{"phase_id":9,"final":61},{"phase_id":10,"final":30}]'
+
+[DEBUG step=8 gen=1] constraint_score=-0.00 error=None
+  bounds_deviation_sec=0.0
+  completion='[{"phase_id":1,"final":45},{"phase_id":2,"final":36},{"phase_id":3,"final":72},{"phase_id":4,"final":31},{"phase_id":5,"final":44},{"phase_id":6,"final":65},{"phase_id":7,"final":38},{"phase_id":8,"final":33},{"phase_id":9,"final":66},{"phase_id":10,"final":54}]'
+
+[DEBUG step=8 gen=2] constraint_score=-0.13 error=None
+  bounds_deviation_sec=4.0
+  completion='[{"phase_id":1,"final":42},{"phase_id":2,"final":42},{"phase_id":3,"final":70},{"phase_id":4,"final":49},{"phase_id":5,"final":36},{"phase_id":6,"final":69},{"phase_id":7,"final":50},{"phase_id":8,"final":25},{"phase_id":9,"final":67},{"phase_id":10,"final":54}]'
+
+[DEBUG step=8 gen=3] constraint_score=-0.10 error=None
+  bounds_deviation_sec=3.0
+  completion='[{"phase_id":1,"final":42},{"phase_id":2,"final":35},{"phase_id":3,"final":49},{"phase_id":4,"final":50},{"phase_id":5,"final":50},{"phase_id":6,"final":68},{"phase_id":7,"final":30},{"phase_id":8,"final":18},{"phase_id":9,"final":68},{"phase_id":10,"final":26}]'
