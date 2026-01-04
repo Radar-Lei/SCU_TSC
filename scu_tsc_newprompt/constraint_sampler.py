@@ -11,7 +11,7 @@ def sample_phase_limits_hybrid(
     net_minmax_one_based: Optional[Dict[int, Tuple[int, int]]] = None,
     rng: Optional[random.Random] = None,
     *,
-    global_min_range: Tuple[int, int] = (5, 30),
+    global_min_range: Tuple[int, int] = (10, 45),
     global_max_cap: int = 120,
 ) -> Dict[str, Dict[str, int]]:
     """
@@ -41,7 +41,7 @@ def sample_phase_limits_hybrid(
             mx = _clamp(base_max + rng.randint(-10, 11), mn + 1, global_max_cap)
         else:
             mn = rng.randint(min_lo, min_hi)
-            mx = mn + rng.randint(5, 90)
+            mx = mn + rng.randint(5, 75)
             mx = _clamp(mx, mn + 1, global_max_cap)
 
         limits[str(phase_id)] = {"min_green": int(mn), "max_green": int(mx)}
