@@ -21,7 +21,6 @@ def build_cycle_predict_input_json(
     tl_id: str,
     phase_order: List[int],
     phase_limits: Dict[str, Dict[str, int]],
-    cycle_constraints: Dict[str, int],
     recent_cycles: List[Dict[str, Any]],
     include_windows_recent_past: bool = True,
     windows_recent_past: Optional[Dict[str, Any]] = None,
@@ -32,13 +31,13 @@ def build_cycle_predict_input_json(
     Important:
     - Only recent_cycles is required; yesterday/last_week are set to null.
     - phase_limits keys are stringified phase ids, matching the template.
+    - 不再包含 cycle_constraints（周期总时长约束），只使用 phase_limits 中的 min_green/max_green。
     """
     payload: Dict[str, Any] = {
         "crossing_id": stable_crossing_id(scenario_name, tl_id),
         "as_of": now_str(),
         "phase_order": phase_order,
         "phase_limits": phase_limits,
-        "cycle_constraints": cycle_constraints,
         "history": {
             "recent_cycles": recent_cycles,
             "cycle_times": [],
