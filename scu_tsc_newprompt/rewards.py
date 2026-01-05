@@ -243,23 +243,23 @@ class AdaptiveScaler:
 def compute_sim_reward_adaptive(
     result: Dict[str, float],
     scaler: AdaptiveScaler,
-    baseline_result: Optional[Dict[str, float]] = None,
+    baseline_result: Optional[Dict[str, float]] = None,  # 保留参数但不再使用
     w_passed: float = 1.0,
     w_queue: float = 1.0,
     w_proxy: float = 0.2,
 ) -> Tuple[float, Dict[str, Any]]:
     """
-    计算仿真 reward（自适应尺度 + 相对改进）。
+    计算仿真 reward（绝对指标，统一尺度版本）。
     
     Args:
         result: 当前 plan 的仿真结果
         scaler: 该路口的 AdaptiveScaler
-        baseline_result: 上一周期 best_plan 的仿真结果（用于相对改进）
+        baseline_result: 不再使用（为兼容性保留）
         w_passed / w_queue / w_proxy: 各指标权重
     
     Returns:
         (sim_reward, info_dict)
-        sim_reward 大致在 [-2, 2] 范围（归一化后）
+        sim_reward 在 [-1.5, 1.5] 范围（与 constraint_score 对称）
     """
     P0, Q0, Z0 = scaler.get_scales()
     
@@ -267,36 +267,32 @@ def compute_sim_reward_adaptive(
     queue = result.get('queue_vehicles', 0.0)
     proxy = result.get('total_queue_proxy', 0.0)
     
-    # 相对改进：如果有 baseline，用差值
-    if baseline_result is not None:
-        passed_delta = passed - baseline_result.get('passed_vehicles', 0.0)
-        queue_delta = queue - baseline_result.get('queue_vehicles', 0.0)
-        proxy_delta = proxy - baseline_result.get('total_queue_proxy', 0.0)
-    else:
-        # 无 baseline 时用绝对值
-        passed_delta = passed
-        queue_delta = queue
-        proxy_delta = proxy
-    
+    # 使用绝对值（不使用 baseline delta）
     # tanh 归一化到 [-1, 1] 区间
-    R_passed = math.tanh(passed_delta / P0)        # passed 越多越好 → 正
-    R_queue = -math.tanh(queue_delta / Q0)         # queue 越多越差 → 负
-    R_proxy = -math.tanh(proxy_delta / Z0)         # proxy 越大越差 → 负
+    R_passed = math.tanh(passed / P0)      # passed 越多越好 → 正
+    R_queue = -math.tanh(queue / Q0)       # queue 越少越好 → 负
+    R_proxy = -math.tanh(proxy / Z0)       # proxy 越小越好 → 负
     
-    # 加权求和
-    sim_reward = w_passed * R_passed + w_queue * R_queue + w_proxy * R_proxy
+    # 加权平均（归一化权重和）
+    total_weight = w_passed + w_queue + w_proxy
+    sim_reward_normalized = (
+        w_passed * R_passed + 
+        w_queue * R_queue + 
+        w_proxy * R_proxy
+    ) / total_weight  # 归一化到 [-1, 1]
+    
+    # 缩放到 [-1.5, 1.5] 以匹配 constraint_score 的范围
+    sim_reward = sim_reward_normalized * 1.5
     
     info = {
         'passed': passed,
         'queue': queue,
         'proxy': proxy,
-        'passed_delta': passed_delta if baseline_result else None,
-        'queue_delta': queue_delta if baseline_result else None,
-        'proxy_delta': proxy_delta if baseline_result else None,
         'scales': (P0, Q0, Z0),
         'R_passed': R_passed,
         'R_queue': R_queue,
         'R_proxy': R_proxy,
+        'sim_reward_normalized': sim_reward_normalized,
     }
     
     return sim_reward, info
