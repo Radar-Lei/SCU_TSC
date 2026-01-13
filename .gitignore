@@ -11,3 +11,6 @@ venv/
 checkpoints/
 save_upload_model/
 save_upload_model_merged/
+.gitignore
+*.pyc
+llama.cpp/
