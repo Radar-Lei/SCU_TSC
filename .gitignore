@@ -14,3 +14,4 @@ save_upload_model_merged/
 .gitignore
 *.pyc
 llama.cpp/
+Qwen3_(4B)_GRPO.ipynb
