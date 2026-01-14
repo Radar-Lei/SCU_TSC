@@ -15,3 +15,5 @@ save_upload_model_merged/
 *.pyc
 llama.cpp/
 Qwen3_(4B)_GRPO.ipynb
+grpo_states/
+grpo_dataset/
