@@ -15,7 +15,7 @@
 import os
 import sys
 
-# os.environ["UNSLOTH_USE_MODELSCOPE"] = "1"
+os.environ["UNSLOTH_USE_MODELSCOPE"] = "1"
 
 print("环境变量已设置")
 
@@ -74,7 +74,7 @@ os.environ["HF_HOME"] = "model"
 os.environ["MODELSCOPE_CACHE"] = "model"
 
 # BASE_MODEL_DIR = "model/models/qwen3-4B-SFT"
-BASE_MODEL_DIR = "rd211/Qwen3-0.6B-Instruct"
+BASE_MODEL_DIR = "Qwen/Qwen2.5-0.5B-Instruct"
 CHECKPOINT_DIR = "checkpoints/grpo_tsc_two_scenarios_latest"
 
 
@@ -169,15 +169,15 @@ config = GRPOConfig(
     output_dir="checkpoints/grpo_tsc_two_scenarios",
 
     # 批次配置
-    per_device_train_batch_size=2,
-    num_generations=8,
+    per_device_train_batch_size=1,
+    num_generations=4,
     gradient_accumulation_steps=4,
 
     # 生成配置
-    max_completion_length=256,
-    temperature=0.8,
-    top_p=0.95,
-    top_k=50,
+    max_completion_length=128,  # 从256降到128，JSON输出不需要太长
+    temperature=0.3,  # 从0.8降到0.3，让输出更确定、更结构化
+    top_p=0.9,  # 从0.95降到0.9
+    top_k=30,  # 从50降到30
 
     # 训练配置
     learning_rate=2e-6,

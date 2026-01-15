@@ -49,7 +49,7 @@ REWARD_CONFIG = {
     'alpha_passed': 1.0,
     'beta_queue': 0.5,
     'invalid_output_reward': -2.0,
-    'parallel_workers': 10,  # 并行计算reward的进程数（0表示不使用并行）
+    'parallel_workers': 0,  # 暂时禁用并行（每个worker都要启动SUMO+warmup反而更慢）
 }
 
 
@@ -192,32 +192,40 @@ def _extract_json_object(text: str) -> Union[Dict[str, Any], None]:
         return None
 
 
-def _parse_signal_step_output(text: str) -> Union[Dict[str, int], None]:
+def _parse_signal_step_output(text: str, debug: bool = False) -> Union[Dict[str, int], None]:
     obj = _extract_json_object(text)
     if not isinstance(obj, dict):
+        if debug: print(f"  - 提取的不是dict: {type(obj)}")
         return None
     if set(obj.keys()) != {"next_phase_id", "green_sec"}:
+        if debug: print(f"  - 字段不匹配: {set(obj.keys())} vs {{next_phase_id, green_sec}}")
         return None
     next_phase_id = obj.get("next_phase_id")
     green_sec = obj.get("green_sec")
     if not isinstance(next_phase_id, int) or not isinstance(green_sec, int):
+        if debug: print(f"  - 类型错误: next_phase_id={type(next_phase_id)}, green_sec={type(green_sec)}")
         return None
     if green_sec <= 0:
+        if debug: print(f"  - green_sec <= 0: {green_sec}")
         return None
     return {"next_phase_id": next_phase_id, "green_sec": green_sec}
 
 
-def _parse_extend_decision_output(text: str) -> Union[Dict[str, Any], None]:
+def _parse_extend_decision_output(text: str, debug: bool = False) -> Union[Dict[str, Any], None]:
     obj = _extract_json_object(text)
     if not isinstance(obj, dict):
+        if debug: print(f"  - 提取的不是dict: {type(obj)}")
         return None
     if set(obj.keys()) != {"extend", "extend_sec"}:
+        if debug: print(f"  - 字段不匹配: {set(obj.keys())} vs {{extend, extend_sec}}")
         return None
     extend = obj.get("extend")
     extend_sec = obj.get("extend_sec")
     if extend not in ("是", "否"):
+        if debug: print(f"  - extend值错误: {extend} (需要'是'或'否')")
         return None
     if not isinstance(extend_sec, int) or extend_sec < 0:
+        if debug: print(f"  - extend_sec类型或值错误: {extend_sec}")
         return None
     return {"extend": extend, "extend_sec": extend_sec}
 
@@ -322,8 +330,9 @@ def _evaluate_single_completion(args: tuple) -> float:
         import traci
         
         if task_type == "signal_step":
-            parsed = _parse_signal_step_output(completion_text)
+            parsed = _parse_signal_step_output(completion_text, debug=True)
             if not parsed:
+                print(f"[DEBUG] signal_step 解析失败，原始输出: {completion_text[:300]}")
                 simulator.close()
                 return float(REWARD_CONFIG['invalid_output_reward'])
             
@@ -331,6 +340,7 @@ def _evaluate_single_completion(args: tuple) -> float:
             green_sec = parsed["green_sec"]
             
             if phase_ids and next_phase_id not in phase_ids:
+                print(f"[DEBUG] next_phase_id={next_phase_id} 不在 phase_ids={phase_ids}")
                 simulator.close()
                 return float(REWARD_CONFIG['invalid_output_reward'])
             
@@ -352,8 +362,9 @@ def _evaluate_single_completion(args: tuple) -> float:
             return float(reward)
         
         elif task_type == "extend_decision":
-            parsed = _parse_extend_decision_output(completion_text)
+            parsed = _parse_extend_decision_output(completion_text, debug=True)
             if not parsed:
+                print(f"[DEBUG] extend_decision 解析失败，原始输出: {completion_text[:300]}")
                 simulator.close()
                 return float(REWARD_CONFIG['invalid_output_reward'])
             
@@ -475,6 +486,19 @@ def tsc_reward_fn(
     
     # 计算每个 prompt 生成的 completions 数量
     num_generations = len(completion_texts) // len(state_paths) if len(state_paths) > 0 else 1
+    
+    # ========== 调试输出（前3条completion） ==========
+    if not hasattr(tsc_reward_fn, '_debug_printed'):
+        tsc_reward_fn._debug_printed = 0
+    
+    if tsc_reward_fn._debug_printed < 3:
+        print(f"\n{'='*70}")
+        print(f"[DEBUG] Completion #{tsc_reward_fn._debug_printed + 1}")
+        print(f"{'='*70}")
+        if completion_texts:
+            print(f"原始输出:\n{completion_texts[0][:500]}")
+            print(f"{'='*70}\n")
+        tsc_reward_fn._debug_printed += 1
     
     # ========== 并行模式 ==========
     if REWARD_CONFIG['parallel_workers'] > 0 and len(completion_texts) > 1:
@@ -599,13 +623,15 @@ def tsc_reward_fn(
                 import traci
 
                 if task_type == "signal_step":
-                    parsed = _parse_signal_step_output(completion_text)
+                    parsed = _parse_signal_step_output(completion_text, debug=True)
                     if not parsed:
+                        print(f"[DEBUG 顺序] signal_step 解析失败，原始输出: {completion_text[:300]}")
                         rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
                         continue
                     next_phase_id = parsed["next_phase_id"]
                     green_sec = parsed["green_sec"]
                     if phase_ids and next_phase_id not in phase_ids:
+                        print(f"[DEBUG 顺序] next_phase_id={next_phase_id} 不在 phase_ids={phase_ids}")
                         rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
                         continue
 
@@ -630,8 +656,9 @@ def tsc_reward_fn(
                     continue
 
                 if task_type == "extend_decision":
-                    parsed = _parse_extend_decision_output(completion_text)
+                    parsed = _parse_extend_decision_output(completion_text, debug=True)
                     if not parsed:
+                        print(f"[DEBUG 顺序] extend_decision 解析失败，原始输出: {completion_text[:300]}")
                         rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
                         continue
                     extend = parsed["extend"]
