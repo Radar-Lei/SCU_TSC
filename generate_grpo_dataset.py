@@ -31,7 +31,7 @@ from sumo_simulator import SUMOSimulator
 
 # 添加 scu_tsc_newprompt 到路径
 sys.path.insert(0, os.getcwd())
-from scu_tsc_newprompt.phase_parser import get_net_phase_minmax_one_based, get_phase_order_one_based
+from scu_tsc_newprompt.phase_parser import get_net_phase_minmax_one_based, get_phase_order_one_based, get_green_phase_order_one_based
 from scu_tsc_newprompt.constraint_sampler import sample_phase_limits_hybrid
 from scu_tsc_newprompt.prompt_builder import (
     build_cycle_predict_input_json,
@@ -388,10 +388,10 @@ def generate_dataset_for_one_tl(
         if simulator.is_connected():
             simulator.step()
 
-    # 解析相位信息
-    phase_order = get_phase_order_one_based(env_info['net'], tl_id)
+    # 解析相位信息（只保留绿灯相位）
+    phase_order = get_green_phase_order_one_based(env_info['net'], tl_id)
     if not phase_order:
-        print(f"✗ 未解析到相位: {scenario_name}/{tl_id}")
+        print(f"✗ 无有效绿灯相位: {scenario_name}/{tl_id}")
         simulator.close()
         return []
 
@@ -477,6 +477,7 @@ def generate_dataset_for_one_tl_two_scenarios(
         config_file=env_info['sumocfg'],
         junctions_file=None,
         gui=CONFIG['gui'],
+        additional_options=['--device.rerouting.probability', '0'],  # 禁用动态重路由
     )
 
     if not simulator.start_simulation():
@@ -487,9 +488,9 @@ def generate_dataset_for_one_tl_two_scenarios(
         if simulator.is_connected():
             simulator.step()
 
-    phase_order = get_phase_order_one_based(env_info['net'], tl_id)
+    phase_order = get_green_phase_order_one_based(env_info['net'], tl_id)
     if not phase_order:
-        print(f"✗ 未解析到相位: {scenario_name}/{tl_id}")
+        print(f"✗ 无有效绿灯相位: {scenario_name}/{tl_id}")
         simulator.close()
         return []
 

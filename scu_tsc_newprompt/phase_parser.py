@@ -90,3 +90,20 @@ def get_net_phase_minmax_one_based(net_xml_path: str, tl_id: str) -> Dict[int, T
     return out
 
 
+def _is_green_phase_state(state: Optional[str]) -> bool:
+    """判断相位 state 字符串是否包含绿灯"""
+    if not state:
+        return False
+    return ("G" in state) or ("g" in state)
+
+
+def get_green_phase_order_one_based(net_xml_path: str, tl_id: str) -> List[int]:
+    """
+    Return 1-based phase IDs that contain green light (G/g).
+    
+    过滤掉黄灯/全红等过渡相位，只返回包含绿灯信号的相位。
+    """
+    phases = parse_tl_phases_from_net(net_xml_path, tl_id)
+    return [p.index_0_based + 1 for p in phases if _is_green_phase_state(p.state)]
+
+
