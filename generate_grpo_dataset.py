@@ -16,7 +16,7 @@ import random
 import datetime
 import xml.etree.ElementTree as ET
 from collections import deque
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 from datasets import Dataset
 from pathlib import Path
 from multiprocessing import Pool, cpu_count
@@ -33,7 +33,14 @@ from sumo_simulator import SUMOSimulator
 sys.path.insert(0, os.getcwd())
 from scu_tsc_newprompt.phase_parser import get_net_phase_minmax_one_based, get_phase_order_one_based
 from scu_tsc_newprompt.constraint_sampler import sample_phase_limits_hybrid
-from scu_tsc_newprompt.prompt_builder import build_cycle_predict_input_json, wrap_prompt_with_markers
+from scu_tsc_newprompt.prompt_builder import (
+    build_cycle_predict_input_json,
+    wrap_prompt_with_markers,
+    build_signal_step_input_json,
+    wrap_signal_step_prompt,
+    build_extend_decision_input_json,
+    wrap_extend_decision_prompt,
+)
 
 
 # ==================== 配置 ====================
@@ -41,6 +48,8 @@ CONFIG = {
     'gui': False,
     'warmup_steps': 80,
     'steps_per_tl': 20,          # 每个信号灯采样多少个时间步
+    'steps_per_tl_signal_step': 10,
+    'steps_per_tl_extend_decision': 10,
     'max_tl_per_scenario': 5,    # 每个场景最多取多少个信号灯（限制 dataset 大小）
     'recent_cycles_maxlen': 12,
     'state_dir': 'grpo_states',  # SUMO state 保存目录
@@ -48,6 +57,12 @@ CONFIG = {
     'priority_scenarios': ['cologne8', 'ingolstadt21'],  # 优先采样的场景
     'skip_tl_ids': [],     # 跳过的信号灯
     'num_workers': 4,            # 并行 worker 数量（建议 CPU 核心数的 50-75%）
+    'dataset_mode': 'two_scenarios',  # 'cycle_predict' | 'two_scenarios'
+    'decision_lead_sec': 10,
+    'phase_duration_scale_range': (0.7, 1.3),
+    'extend_min_green_range': (5, 20),
+    'extend_max_green_range': (25, 120),
+    'extend_wait_time_range': (5, 25),
 }
 
 SYSTEM_PROMPT = """你是交通信号配时优化专家。
@@ -111,6 +126,45 @@ def discover_environments(environments_root: str) -> Dict[str, Dict]:
     return environments
 
 
+def discover_sumo_scenarios(sumo_root: str) -> Dict[str, Dict]:
+    """从 sumo_simulation/ 下发现可用场景"""
+    scenarios: Dict[str, Dict] = {}
+    if not os.path.isdir(sumo_root):
+        print(f"警告: sumo_simulation 目录不存在: {sumo_root}")
+        return scenarios
+
+    for name in sorted(os.listdir(sumo_root)):
+        scenario_dir = os.path.join(sumo_root, name)
+        if not os.path.isdir(scenario_dir) or name.startswith('.'):
+            continue
+        if name in {"sumo_sim", "__pycache__"}:
+            continue
+
+        sumocfg = None
+        net_xml = None
+
+        for f in os.listdir(scenario_dir):
+            if f.endswith('.sumocfg'):
+                sumocfg = os.path.join(scenario_dir, f)
+                break
+
+        for f in os.listdir(scenario_dir):
+            if f.endswith('.net.xml'):
+                net_xml = os.path.join(scenario_dir, f)
+                break
+
+        if sumocfg and net_xml:
+            tl_ids = extract_traffic_light_ids(net_xml)
+            if tl_ids:
+                scenarios[name] = {
+                    'sumocfg': sumocfg,
+                    'net': net_xml,
+                    'tl_ids': tl_ids,
+                }
+
+    return scenarios
+
+
 def extract_traffic_light_ids(net_xml_path: str) -> List[str]:
     """从 net.xml 提取信号灯 ID"""
     tl_ids: List[str] = []
@@ -145,6 +199,165 @@ def collect_phase_waits_snapshot(simulator: SUMOSimulator, tl_id: str, phase_ord
             avg = total / max(1, len(lanes))
         waits.append({'phase_id': int(phase_id), 'avg_wait': float(round(avg, 2))})
     return waits
+
+
+def _is_green_phase(phase_state: str) -> bool:
+    if not phase_state:
+        return False
+    return ("G" in phase_state) or ("g" in phase_state)
+
+
+def _get_current_phase_state(simulator: SUMOSimulator, tl_id: str) -> Tuple[int, str]:
+    info = simulator.get_phase_info(tl_id)
+    current_idx = int(info.get('current_phase_index', 0))
+    phase_states = info.get('phase_states', [])
+    state = phase_states[current_idx] if current_idx < len(phase_states) else ""
+    return current_idx, state
+
+
+def _build_phase_lane_map(simulator: SUMOSimulator, tl_id: str, phase_ids: List[int]) -> Dict[str, List[str]]:
+    phase_lane_map: Dict[str, List[str]] = {}
+    for phase_id in phase_ids:
+        phase_idx = phase_id - 1
+        lanes = simulator.get_phase_controlled_lanes(tl_id, phase_idx).get('incoming_lanes', [])
+        phase_lane_map[str(phase_id)] = list(lanes)
+    return phase_lane_map
+
+
+def _randomize_tl_program_durations(
+    tl_id: str,
+    scale_range: Tuple[float, float],
+    rng: random.Random,
+):
+    import traci
+
+    try:
+        logics = traci.trafficlight.getAllProgramLogics(tl_id)
+        if not logics:
+            return
+        logic = logics[0]
+        phases = []
+        for ph in logic.phases:
+            scale = rng.uniform(scale_range[0], scale_range[1])
+            new_dur = max(1, int(round(ph.duration * scale)))
+            phases.append(traci.trafficlight.Phase(new_dur, ph.state, ph.minDur, ph.maxDur, ph.next))
+        new_logic = traci.trafficlight.Logic(
+            logic.programID,
+            logic.type,
+            logic.currentPhaseIndex,
+            phases,
+            logic.subParameter,
+        )
+        traci.trafficlight.setProgramLogic(tl_id, new_logic)
+    except Exception:
+        # 若修改失败，保持默认配时
+        return
+
+
+def _init_phase_tracking(simulator: SUMOSimulator, tl_id: str) -> Dict[str, Any]:
+    import traci
+
+    phase_idx, phase_state = _get_current_phase_state(simulator, tl_id)
+    lanes = simulator.get_phase_controlled_lanes(tl_id, phase_idx).get('incoming_lanes', [])
+    lane_prev_ids = {}
+    for ln in lanes:
+        try:
+            lane_prev_ids[ln] = set(traci.lane.getLastStepVehicleIDs(ln))
+        except Exception:
+            lane_prev_ids[ln] = set()
+    return {
+        "phase_idx": phase_idx,
+        "phase_state": phase_state,
+        "phase_start_time": float(traci.simulation.getTime()),
+        "passed_total": 0.0,
+        "lane_prev_ids": lane_prev_ids,
+    }
+
+
+def _step_and_track(simulator: SUMOSimulator, tl_id: str, track: Dict[str, Any]):
+    import traci
+
+    simulator.step()
+    current_time = float(traci.simulation.getTime())
+    phase_idx, phase_state = _get_current_phase_state(simulator, tl_id)
+    if phase_idx != track["phase_idx"]:
+        track["phase_idx"] = phase_idx
+        track["phase_state"] = phase_state
+        track["phase_start_time"] = current_time
+        track["passed_total"] = 0.0
+        lanes = simulator.get_phase_controlled_lanes(tl_id, phase_idx).get('incoming_lanes', [])
+        lane_prev_ids = {}
+        for ln in lanes:
+            try:
+                lane_prev_ids[ln] = set(traci.lane.getLastStepVehicleIDs(ln))
+            except Exception:
+                lane_prev_ids[ln] = set()
+        track["lane_prev_ids"] = lane_prev_ids
+        return
+
+    track["phase_state"] = phase_state
+    if not _is_green_phase(phase_state):
+        return
+
+    passed_increment = 0.0
+    for ln, prev_ids in track["lane_prev_ids"].items():
+        try:
+            curr_ids = set(traci.lane.getLastStepVehicleIDs(ln))
+        except Exception:
+            curr_ids = set()
+        passed_increment += float(len(prev_ids - curr_ids))
+        track["lane_prev_ids"][ln] = curr_ids
+    track["passed_total"] += passed_increment
+
+
+def _collect_phase_metrics_now(
+    simulator: SUMOSimulator,
+    tl_id: str,
+    phase_ids: List[int],
+    current_phase_id: int,
+    current_phase_passed_total: float,
+) -> List[Dict[str, Any]]:
+    import traci
+
+    metrics = []
+    for phase_id in phase_ids:
+        phase_idx = phase_id - 1
+        lanes = simulator.get_phase_controlled_lanes(tl_id, phase_idx).get('incoming_lanes', [])
+        if lanes:
+            total_queue = 0.0
+            for ln in lanes:
+                try:
+                    total_queue += traci.lane.getLastStepHaltingNumber(ln)
+                except Exception:
+                    pass
+            avg_queue = total_queue / max(1, len(lanes))
+        else:
+            avg_queue = 0.0
+        passed = current_phase_passed_total if phase_id == current_phase_id else 0.0
+        metrics.append({
+            "phase_id": int(phase_id),
+            "avg_queue_veh": float(round(avg_queue, 3)),
+            "avg_passed_veh_in_current_green": float(round(passed, 3)),
+        })
+    return metrics
+
+
+def _sample_phase_limits_uniform(
+    phase_order: List[int],
+    rng: random.Random,
+    min_range: Tuple[int, int],
+    max_range: Tuple[int, int],
+) -> Dict[str, Dict[str, int]]:
+    limits: Dict[str, Dict[str, int]] = {}
+    min_lo, min_hi = min_range
+    max_lo, max_hi = max_range
+    for phase_id in phase_order:
+        mn = rng.randint(min_lo, min_hi)
+        mx = rng.randint(max_lo, max_hi)
+        if mx <= mn + 5:
+            mx = mn + 6
+        limits[str(phase_id)] = {"min_green": int(mn), "max_green": int(mx)}
+    return limits
 
 
 def build_user_prompt(payload: dict) -> str:
@@ -251,6 +464,219 @@ def generate_dataset_for_one_tl(
     return samples
 
 
+def generate_dataset_for_one_tl_two_scenarios(
+    scenario_name: str,
+    tl_id: str,
+    env_info: dict,
+    state_root: str,
+) -> List[dict]:
+    """为一个信号灯生成两大场景 dataset 样本"""
+    import traci
+
+    simulator = SUMOSimulator(
+        config_file=env_info['sumocfg'],
+        junctions_file=None,
+        gui=CONFIG['gui'],
+    )
+
+    if not simulator.start_simulation():
+        print(f"✗ 启动失败: {scenario_name}/{tl_id}")
+        return []
+
+    for _ in range(CONFIG['warmup_steps']):
+        if simulator.is_connected():
+            simulator.step()
+
+    phase_order = get_phase_order_one_based(env_info['net'], tl_id)
+    if not phase_order:
+        print(f"✗ 未解析到相位: {scenario_name}/{tl_id}")
+        simulator.close()
+        return []
+
+    phase_ids = list(phase_order)
+    phase_lane_map = _build_phase_lane_map(simulator, tl_id, phase_ids)
+
+    state_dir = os.path.join(state_root, scenario_name)
+    os.makedirs(state_dir, exist_ok=True)
+
+    samples: List[dict] = []
+    rng_base = random.Random(hash(scenario_name) ^ hash(tl_id))
+
+    # 初始化相位跟踪
+    track = _init_phase_tracking(simulator, tl_id)
+
+    # ========== 场景1: signal_step ==========
+    steps_signal = CONFIG.get('steps_per_tl_signal_step', CONFIG['steps_per_tl'])
+    decision_lead_sec = int(CONFIG.get('decision_lead_sec', 10))
+    scale_range = CONFIG.get('phase_duration_scale_range', (0.7, 1.3))
+
+    for step_idx in range(steps_signal):
+        if not simulator.is_connected():
+            break
+
+        rng = random.Random((hash(scenario_name) ^ hash(tl_id) ^ step_idx) & 0xFFFFFFFF)
+        _randomize_tl_program_durations(tl_id, scale_range, rng)
+
+        # 推进到绿灯结束前 decision_lead_sec 秒
+        max_guard_steps = 600
+        guard = 0
+        while guard < max_guard_steps:
+            phase_idx, phase_state = _get_current_phase_state(simulator, tl_id)
+            remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
+            if _is_green_phase(phase_state) and remaining <= decision_lead_sec:
+                break
+            _step_and_track(simulator, tl_id, track)
+            guard += 1
+
+        if guard >= max_guard_steps:
+            continue
+
+        phase_idx, phase_state = _get_current_phase_state(simulator, tl_id)
+        current_phase_id = phase_idx + 1
+        planned_green = int(round(traci.trafficlight.getPhaseDuration(tl_id)))
+        remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
+        current_elapsed = int(max(0, round(planned_green - remaining)))
+
+        phase_metrics_now = _collect_phase_metrics_now(
+            simulator,
+            tl_id,
+            phase_ids,
+            current_phase_id,
+            track["passed_total"],
+        )
+
+        payload = build_signal_step_input_json(
+            scenario_name=scenario_name,
+            tl_id=tl_id,
+            phase_ids=phase_ids,
+            phase_lane_map=phase_lane_map,
+            current_phase_id=current_phase_id,
+            current_phase_elapsed_sec=current_elapsed,
+            current_phase_planned_green_sec=planned_green,
+            phase_metrics_now=phase_metrics_now,
+        )
+
+        full_prompt = wrap_signal_step_prompt(payload)
+        messages = [{"role": "user", "content": full_prompt}]
+
+        current_time = traci.simulation.getTime()
+        state_filename = f"{tl_id}_signal_step_{step_idx}_t{int(current_time)}.xml"
+        state_path = os.path.join(state_dir, state_filename)
+        traci.simulation.saveState(state_path)
+
+        samples.append({
+            'prompt': messages,
+            'state_path': state_path,
+            'scenario': scenario_name,
+            'tl_id': tl_id,
+            'task_type': 'signal_step',
+            'phase_ids': phase_ids,
+            'phase_lane_map': phase_lane_map,
+            'decision_lead_sec': decision_lead_sec,
+        })
+
+        # 轻微推进仿真，避免同一状态
+        for _ in range(5):
+            _step_and_track(simulator, tl_id, track)
+
+    # ========== 场景2: extend_decision ==========
+    steps_extend = CONFIG.get('steps_per_tl_extend_decision', CONFIG['steps_per_tl'])
+    min_range = CONFIG.get('extend_min_green_range', (5, 20))
+    max_range = CONFIG.get('extend_max_green_range', (25, 120))
+    wait_range = CONFIG.get('extend_wait_time_range', (5, 25))
+
+    for step_idx in range(steps_extend):
+        if not simulator.is_connected():
+            break
+
+        rng = random.Random((hash(scenario_name) ^ hash(tl_id) ^ (step_idx + 999)) & 0xFFFFFFFF)
+        phase_limits = _sample_phase_limits_uniform(phase_order, rng, min_range, max_range)
+        wait_time = rng.randint(wait_range[0], wait_range[1])
+
+        # 目标决策时刻
+        current_phase_id = track["phase_idx"] + 1
+        limits = phase_limits.get(str(current_phase_id), None)
+        if not limits:
+            target_elapsed = rng.randint(5, 20)
+        else:
+            min_green = int(limits["min_green"])
+            max_green = int(limits["max_green"])
+            if step_idx == 0:
+                target_elapsed = min_green
+            else:
+                target_elapsed = rng.randint(min_green, max_green)
+
+        # 推进到决策时刻（确保当前相位持续时间足够）
+        max_guard_steps = 600
+        guard = 0
+        while guard < max_guard_steps:
+            phase_idx, phase_state = _get_current_phase_state(simulator, tl_id)
+            if not _is_green_phase(phase_state):
+                _step_and_track(simulator, tl_id, track)
+                guard += 1
+                continue
+
+            elapsed = int(round(traci.simulation.getTime() - track["phase_start_time"]))
+            if elapsed >= target_elapsed:
+                break
+            # 适当延长当前相位，保证能到达目标时刻
+            traci.trafficlight.setPhaseDuration(tl_id, max(5, target_elapsed - elapsed))
+            _step_and_track(simulator, tl_id, track)
+            guard += 1
+
+        if guard >= max_guard_steps:
+            continue
+
+        current_phase_id = track["phase_idx"] + 1
+        elapsed = int(round(traci.simulation.getTime() - track["phase_start_time"]))
+
+        phase_metrics_now = _collect_phase_metrics_now(
+            simulator,
+            tl_id,
+            phase_ids,
+            current_phase_id,
+            track["passed_total"],
+        )
+
+        payload = build_extend_decision_input_json(
+            scenario_name=scenario_name,
+            tl_id=tl_id,
+            phase_order=phase_order,
+            phase_limits=phase_limits,
+            phase_lane_map=phase_lane_map,
+            current_phase_id=current_phase_id,
+            current_phase_elapsed_sec=elapsed,
+            wait_time_for_phase_change=wait_time,
+            phase_metrics_now=phase_metrics_now,
+        )
+
+        full_prompt = wrap_extend_decision_prompt(payload)
+        messages = [{"role": "user", "content": full_prompt}]
+
+        current_time = traci.simulation.getTime()
+        state_filename = f"{tl_id}_extend_decision_{step_idx}_t{int(current_time)}.xml"
+        state_path = os.path.join(state_dir, state_filename)
+        traci.simulation.saveState(state_path)
+
+        samples.append({
+            'prompt': messages,
+            'state_path': state_path,
+            'scenario': scenario_name,
+            'tl_id': tl_id,
+            'task_type': 'extend_decision',
+            'phase_order': phase_order,
+            'phase_limits': phase_limits,
+            'phase_lane_map': phase_lane_map,
+            'wait_time_for_phase_change': wait_time,
+        })
+
+        for _ in range(5):
+            _step_and_track(simulator, tl_id, track)
+
+    simulator.close()
+    return samples
+
+
 def _worker_process_tl(args: Tuple) -> Tuple[str, str, List[dict]]:
     """
     Worker 函数：处理单个 (scenario, tl_id)
@@ -259,15 +685,23 @@ def _worker_process_tl(args: Tuple) -> Tuple[str, str, List[dict]]:
     Returns:
         (scenario_name, tl_id, samples)
     """
-    scenario_name, tl_id, env_info, state_root = args
+    scenario_name, tl_id, env_info, state_root, dataset_mode = args
     
     try:
-        samples = generate_dataset_for_one_tl(
-            scenario_name=scenario_name,
-            tl_id=tl_id,
-            env_info=env_info,
-            state_root=state_root,
-        )
+        if dataset_mode == 'two_scenarios':
+            samples = generate_dataset_for_one_tl_two_scenarios(
+                scenario_name=scenario_name,
+                tl_id=tl_id,
+                env_info=env_info,
+                state_root=state_root,
+            )
+        else:
+            samples = generate_dataset_for_one_tl(
+                scenario_name=scenario_name,
+                tl_id=tl_id,
+                env_info=env_info,
+                state_root=state_root,
+            )
         return (scenario_name, tl_id, samples)
     except Exception as e:
         print(f"✗ Worker 失败 [{scenario_name}/{tl_id}]: {e}")
@@ -285,8 +719,10 @@ def main(num_workers: int = None):
     if num_workers is None:
         num_workers = CONFIG.get('num_workers', 4)
     
-    # 发现场景
-    environments_root = os.path.join(os.getcwd(), 'sumo_simulation/environments')
+    dataset_mode = CONFIG.get('dataset_mode', 'cycle_predict')
+
+    # 发现场景（仅使用 sumo_simulation/environments）
+    environments_root = os.path.join(os.getcwd(), 'sumo_simulation', 'environments')
     available_envs = discover_environments(environments_root)
     print(f"发现场景数: {len(available_envs)}")
     
@@ -325,7 +761,7 @@ def main(num_workers: int = None):
     worker_args = []
     for scenario_name, tl_id in all_pairs:
         env_info = available_envs[scenario_name]
-        worker_args.append((scenario_name, tl_id, env_info, state_root))
+        worker_args.append((scenario_name, tl_id, env_info, state_root, dataset_mode))
     
     all_samples = []
     
