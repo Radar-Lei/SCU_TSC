@@ -19,3 +19,6 @@ grpo_states/
 grpo_dataset/
 grpo_dataset_two_scenarios/
 grpo_states_two_scenarios/
+Dockerfile
+Dockerfile.base
+Dockerfile.builder
