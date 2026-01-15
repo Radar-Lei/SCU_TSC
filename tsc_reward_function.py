@@ -49,7 +49,7 @@ REWARD_CONFIG = {
     'alpha_passed': 1.0,
     'beta_queue': 0.5,
     'invalid_output_reward': -2.0,
-    'parallel_workers': 0,  # 暂时禁用并行（每个worker都要启动SUMO+warmup反而更慢）
+    'parallel_workers': 10,  # 暂时禁用并行（每个worker都要启动SUMO+warmup反而更慢）
 }
 
 
