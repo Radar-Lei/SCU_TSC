@@ -147,6 +147,9 @@ RUN_ARGS+=" -e MODELSCOPE_CACHE=/workspace/model"
 RUN_ARGS+=" -e HF_HUB_ENABLE_HF_TRANSFER=1"
 RUN_ARGS+=" -e PYTHONUNBUFFERED=1"
 
+# 使用当前用户运行容器，避免生成 root 权限文件
+RUN_ARGS+=" --user $(id -u):$(id -g)"
+
 # 共享内存大小（大模型训练需要）
 RUN_ARGS+=" --shm-size=64g"
 
