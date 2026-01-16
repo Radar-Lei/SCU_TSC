@@ -174,10 +174,10 @@ config = GRPOConfig(
     gradient_accumulation_steps=4,
 
     # 生成配置
-    max_completion_length=128,  # 从256降到128，JSON输出不需要太长
-    temperature=0.3,  # 从0.8降到0.3，让输出更确定、更结构化
-    top_p=0.9,  # 从0.95降到0.9
-    top_k=30,  # 从50降到30
+    max_completion_length=128,  
+    temperature=0.8,  
+    top_p=0.95,  # 从0.95降到0.9
+    top_k=50,  # 从50降到30
 
     # 训练配置
     learning_rate=2e-6,

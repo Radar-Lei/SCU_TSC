@@ -53,6 +53,27 @@ HOST_CHECKPOINT_DIR="${HOST_CHECKPOINT_DIR:-${ROOT_DIR}/checkpoints}"
 HOST_DATASET_DIR="${HOST_DATASET_DIR:-${ROOT_DIR}/grpo_dataset_two_scenarios}"
 HOST_STATE_DIR="${HOST_STATE_DIR:-${ROOT_DIR}/grpo_states_two_scenarios}"
 
+# 日志文件
+LOG_FILE="${LOG_FILE:-${ROOT_DIR}/training_log.md}"
+
+# =============================================================================
+# 日志初始化
+# =============================================================================
+
+# 日志辅助函数
+log_msg() {
+    echo "$@" | tee -a "${LOG_FILE}"
+}
+
+# 添加运行时间戳到日志
+{
+    echo ""
+    echo "============================================================"
+    echo "Training Run: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "============================================================"
+    echo ""
+} >> "${LOG_FILE}"
+
 # =============================================================================
 # 预处理：清理已有容器
 # =============================================================================
@@ -60,7 +81,7 @@ HOST_STATE_DIR="${HOST_STATE_DIR:-${ROOT_DIR}/grpo_states_two_scenarios}"
 if [[ "${STOP_EXISTING}" == "1" ]]; then
     existing="$(docker ps -a --filter "name=^/${CONTAINER_NAME}$" --format '{{.Names}}' 2>/dev/null || true)"
     if [[ -n "${existing}" ]]; then
-        echo "[publish] 停止并删除已有容器: ${CONTAINER_NAME}"
+        log_msg "[publish] 停止并删除已有容器: ${CONTAINER_NAME}"
         docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
     fi
 fi
@@ -69,12 +90,12 @@ fi
 # 构建镜像
 # =============================================================================
 
-echo "[publish] 构建镜像 ${IMAGE_NAME}:${IMAGE_TAG}"
-echo "[publish] 基础镜像: ${BASE_IMAGE}"
+log_msg "[publish] 构建镜像 ${IMAGE_NAME}:${IMAGE_TAG}"
+log_msg "[publish] 基础镜像: ${BASE_IMAGE}"
 if [[ -n "${PIP_INDEX_URL}" ]]; then
-    echo "[publish] PIP_INDEX_URL: ${PIP_INDEX_URL}"
+    log_msg "[publish] PIP_INDEX_URL: ${PIP_INDEX_URL}"
 fi
-echo "[publish] 项目目录: ${ROOT_DIR}"
+log_msg "[publish] 项目目录: ${ROOT_DIR}"
 
 build_args=(--build-arg "BASE_IMAGE=${BASE_IMAGE}")
 if [[ -n "${PIP_INDEX_URL}" ]]; then
@@ -85,16 +106,16 @@ docker build \
     -f "${SCRIPT_DIR}/Dockerfile" \
     "${build_args[@]}" \
     -t "${IMAGE_NAME}:${IMAGE_TAG}" \
-    "${SCRIPT_DIR}"
+    "${SCRIPT_DIR}" 2>&1 | tee -a "${LOG_FILE}"
 
-echo "[publish] 镜像构建完成: ${IMAGE_NAME}:${IMAGE_TAG}"
+log_msg "[publish] 镜像构建完成: ${IMAGE_NAME}:${IMAGE_TAG}"
 
 # =============================================================================
 # 运行容器
 # =============================================================================
 
 if [[ "${RUN}" != "1" ]]; then
-    echo "[publish] RUN=0, 跳过容器运行"
+    log_msg "[publish] RUN=0, 跳过容器运行"
     exit 0
 fi
 
@@ -151,35 +172,55 @@ else
     RUN_CMD="python ${SCRIPT_NAME}"
 fi
 
-echo ""
-echo "============================================================"
-echo "[publish] 运行配置:"
-echo "  镜像: ${IMAGE_NAME}:${IMAGE_TAG}"
-echo "  容器名: ${CONTAINER_NAME}"
-echo "  GPU: ${GPU_DEVICE}"
-echo "  训练脚本: ${SCRIPT_NAME}"
-echo "  交互模式: ${INTERACTIVE}"
-echo "  后台运行: ${DETACH}"
-echo "============================================================"
-echo ""
+log_msg ""
+log_msg "============================================================"
+log_msg "[publish] 运行配置:"
+log_msg "  镜像: ${IMAGE_NAME}:${IMAGE_TAG}"
+log_msg "  容器名: ${CONTAINER_NAME}"
+log_msg "  GPU: ${GPU_DEVICE}"
+log_msg "  训练脚本: ${SCRIPT_NAME}"
+log_msg "  交互模式: ${INTERACTIVE}"
+log_msg "  后台运行: ${DETACH}"
+log_msg "  日志文件: ${LOG_FILE}"
+log_msg "============================================================"
+log_msg ""
 
 # 运行容器
 # shellcheck disable=SC2086
-docker run \
-    "${run_flags[@]}" \
-    --name "${CONTAINER_NAME}" \
-    ${RUN_ARGS} \
-    "${IMAGE_NAME}:${IMAGE_TAG}" \
-    ${RUN_CMD}
+if [[ "${INTERACTIVE}" == "1" ]] || [[ "${DETACH}" == "1" ]]; then
+    # 交互模式或后台模式不使用 tee（避免干扰交互或后台运行）
+    docker run \
+        "${run_flags[@]}" \
+        --name "${CONTAINER_NAME}" \
+        ${RUN_ARGS} \
+        "${IMAGE_NAME}:${IMAGE_TAG}" \
+        ${RUN_CMD}
+else
+    # 前台非交互模式：输出到终端并追加到日志文件
+    docker run \
+        "${run_flags[@]}" \
+        --name "${CONTAINER_NAME}" \
+        ${RUN_ARGS} \
+        "${IMAGE_NAME}:${IMAGE_TAG}" \
+        ${RUN_CMD} 2>&1 | tee -a "${LOG_FILE}"
+fi
 
 # 如果是后台运行，显示日志提示
 if [[ "${DETACH}" == "1" ]]; then
-    echo ""
-    echo "[publish] 容器已在后台启动"
-    echo "[publish] 查看日志: docker logs -f ${CONTAINER_NAME}"
-    echo "[publish] 进入容器: docker exec -it ${CONTAINER_NAME} bash"
-    echo "[publish] 停止容器: docker stop ${CONTAINER_NAME}"
+    log_msg ""
+    log_msg "[publish] 容器已在后台启动"
+    log_msg "[publish] 查看日志: docker logs -f ${CONTAINER_NAME}"
+    log_msg "[publish] 进入容器: docker exec -it ${CONTAINER_NAME} bash"
+    log_msg "[publish] 停止容器: docker stop ${CONTAINER_NAME}"
 fi
 
-echo ""
-echo "[publish] 完成: ${IMAGE_NAME}:${IMAGE_TAG}"
+log_msg ""
+log_msg "[publish] 完成: ${IMAGE_NAME}:${IMAGE_TAG}"
+
+# 记录完成时间到日志
+{
+    echo ""
+    echo "Finished at: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "============================================================"
+    echo ""
+} >> "${LOG_FILE}"
