@@ -23,4 +23,3 @@ Dockerfile
 Dockerfile.base
 Dockerfile.builder
 sumo-cjy/
-training_log.md
