@@ -23,6 +23,13 @@ print("环境变量已设置")
 # ## 1.5 生成/检查 Dataset（可选）
 # 
 # 如果 dataset 不存在，此 cell 会自动生成；如果已存在，则跳过。
+# 
+# 快速验证模式配置（验证改动是否生效）：
+#   - steps_per_tl_signal_step: 2       # 每场景每TL的signal_step样本数（默认10）
+#   - steps_per_tl_extend_decision: 2   # 每场景每TL的extend_decision样本数（默认10）
+#   - max_tl_per_scenario: 2            # 每场景最多TL数（默认5）
+#   - num_workers: 4                    # 并行worker数（默认16）
+# 正式训练时恢复到默认值。
 # ======================================================================
 
 # %%
@@ -34,21 +41,27 @@ if not os.path.isdir(DATASET_PATH):
     print(f"⚠️ Dataset 不存在: {DATASET_PATH}")
     print("开始生成 dataset...")
 
+    # 快速验证模式：取消下面注释以使用小规模dataset
+    # QUICK_VERIFY = True
+    QUICK_VERIFY = False  # 正式训练设为 False
+
     CONFIG.update({
         "output_dir": DATASET_PATH,
         "state_dir": "grpo_states_two_scenarios",
         "dataset_mode": "two_scenarios",
-        "steps_per_tl_signal_step": 10,
-        "steps_per_tl_extend_decision": 10,
+        "steps_per_tl_signal_step": 2 if QUICK_VERIFY else 10,
+        "steps_per_tl_extend_decision": 2 if QUICK_VERIFY else 10,
         "decision_lead_sec": 10,
         "phase_duration_scale_range": (0.7, 1.3),
         "extend_min_green_range": (5, 20),
         "extend_max_green_range": (25, 120),
         "extend_wait_time_range": (5, 25),
-        "num_workers": 16,
+        "max_tl_per_scenario": 2 if QUICK_VERIFY else 5,
+        "num_workers": 4 if QUICK_VERIFY else 16,
     })
 
     print("当前配置:")
+    print(f"  - 模式: {'快速验证' if QUICK_VERIFY else '正式训练'}")
     print(f"  - warmup_steps: {CONFIG['warmup_steps']}")
     print(f"  - steps_per_tl_signal_step: {CONFIG['steps_per_tl_signal_step']}")
     print(f"  - steps_per_tl_extend_decision: {CONFIG['steps_per_tl_extend_decision']}")
@@ -160,10 +173,17 @@ print("✓ Reward function 加载成功")
 
 # ======================================================================
 # ## 5. 配置 GRPOTrainer
+# 
+# 快速验证模式：max_steps=20（默认-1为全epoch）
+# 正式训练时设回 -1
 # ======================================================================
 
 # %%
 from trl import GRPOConfig, GRPOTrainer
+
+# 快速验证模式：取消下面注释以使用短训练
+# QUICK_VERIFY = True
+QUICK_VERIFY = False  # 正式训练设为 False
 
 config = GRPOConfig(
     output_dir="checkpoints/grpo_tsc_two_scenarios",
@@ -176,13 +196,13 @@ config = GRPOConfig(
     # 生成配置
     max_completion_length=128,  
     temperature=0.8,  
-    top_p=0.95,  # 从0.95降到0.9
-    top_k=50,  # 从50降到30
+    top_p=0.95,
+    top_k=50,
 
     # 训练配置
     learning_rate=2e-6,
     num_train_epochs=1,
-    max_steps=-1,
+    max_steps=20 if QUICK_VERIFY else -1,  # 快速验证：20步；正式训练：全epoch
 
     # GRPO 特定
     scale_rewards=True,
@@ -203,7 +223,11 @@ config = GRPOConfig(
     remove_unused_columns=False,
 )
 
-print("✓ GRPOConfig 配置完成")
+print(f"✓ GRPOConfig 配置完成 (模式: {'快速验证' if QUICK_VERIFY else '正式训练'})")
+if QUICK_VERIFY:
+    print(f"  - max_steps: {config.max_steps} (验证模式)")
+else:
+    print(f"  - max_steps: {config.max_steps} (全epoch)")
 
 # ======================================================================
 # ## 6. 创建 GRPOTrainer 并开始训练

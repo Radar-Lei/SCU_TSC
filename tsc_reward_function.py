@@ -49,7 +49,9 @@ REWARD_CONFIG = {
     'alpha_passed': 1.0,
     'beta_queue': 0.5,
     'invalid_output_reward': -2.0,
-    'parallel_workers': 10,
+    'parallel_workers': 0,  # 默认单进程+复用SimulatorPool（更稳定）
+    'green_sec_min': 1,     # signal_step 的 green_sec 下限
+    'green_sec_max': 120,   # signal_step 的 green_sec 上限
 }
 
 
@@ -175,59 +177,169 @@ def evaluate_plan_once_reward_fn(
 
 
 def _extract_json_object(text: str) -> Union[Dict[str, Any], None]:
+    """
+    提取JSON对象，使用最后一个匹配的 {...}（更容错）。
+    """
     if not text:
         return None
     s = text.strip()
+    
+    # 快速路径：纯JSON
     if s.startswith("{") and s.endswith("}"):
         try:
             return json.loads(s)
         except Exception:
-            return None
-    m = re.search(r"\{[\s\S]*\}", s)
-    if not m:
-        return None
-    try:
-        return json.loads(m.group(0))
-    except Exception:
-        return None
+            pass
+    
+    # 查找所有 {...} 匹配，取最后一个（通常是真正的JSON输出）
+    matches = list(re.finditer(r"\{[^{}]*\}", s))
+    if not matches:
+        # 尝试更复杂的嵌套匹配
+        matches = list(re.finditer(r"\{[\s\S]*?\}", s))
+    
+    # 从后往前尝试解析
+    for m in reversed(matches):
+        try:
+            obj = json.loads(m.group(0))
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            continue
+    
+    return None
 
 
 def _parse_signal_step_output(text: str, debug: bool = False) -> Union[Dict[str, int], None]:
+    """
+    解析 signal_step 输出，容忍多余字段和数值字符串。
+    """
     obj = _extract_json_object(text)
     if not isinstance(obj, dict):
         if debug: print(f"  - 提取的不是dict: {type(obj)}")
         return None
-    if set(obj.keys()) != {"next_phase_id", "green_sec"}:
-        if debug: print(f"  - 字段不匹配: {set(obj.keys())} vs {{next_phase_id, green_sec}}")
+    
+    # 容忍多余字段，只检查必需字段是否存在
+    if "next_phase_id" not in obj or "green_sec" not in obj:
+        if debug: print(f"  - 缺少必需字段: {set(obj.keys())} 需要 {{next_phase_id, green_sec}}")
         return None
-    next_phase_id = obj.get("next_phase_id")
-    green_sec = obj.get("green_sec")
-    if not isinstance(next_phase_id, int) or not isinstance(green_sec, int):
-        if debug: print(f"  - 类型错误: next_phase_id={type(next_phase_id)}, green_sec={type(green_sec)}")
+    
+    # 容忍数值字符串，尝试转换
+    try:
+        next_phase_id = obj.get("next_phase_id")
+        if isinstance(next_phase_id, str):
+            next_phase_id = int(next_phase_id)
+        elif not isinstance(next_phase_id, int):
+            if debug: print(f"  - next_phase_id 无法转为 int: {next_phase_id}")
+            return None
+        
+        green_sec = obj.get("green_sec")
+        if isinstance(green_sec, str):
+            green_sec = int(green_sec)
+        elif not isinstance(green_sec, int):
+            if debug: print(f"  - green_sec 无法转为 int: {green_sec}")
+            return None
+        
+        if green_sec <= 0:
+            if debug: print(f"  - green_sec <= 0: {green_sec}")
+            return None
+        
+        return {"next_phase_id": int(next_phase_id), "green_sec": int(green_sec)}
+    
+    except (ValueError, TypeError) as e:
+        if debug: print(f"  - 转换错误: {e}")
         return None
-    if green_sec <= 0:
-        if debug: print(f"  - green_sec <= 0: {green_sec}")
-        return None
-    return {"next_phase_id": next_phase_id, "green_sec": green_sec}
 
 
 def _parse_extend_decision_output(text: str, debug: bool = False) -> Union[Dict[str, Any], None]:
+    """
+    解析 extend_decision 输出，容忍多余字段、数值字符串和extend同义值。
+    """
     obj = _extract_json_object(text)
     if not isinstance(obj, dict):
         if debug: print(f"  - 提取的不是dict: {type(obj)}")
         return None
-    if set(obj.keys()) != {"extend", "extend_sec"}:
-        if debug: print(f"  - 字段不匹配: {set(obj.keys())} vs {{extend, extend_sec}}")
+    
+    # 容忍多余字段，只检查必需字段
+    if "extend" not in obj or "extend_sec" not in obj:
+        if debug: print(f"  - 缺少必需字段: {set(obj.keys())} 需要 {{extend, extend_sec}}")
         return None
-    extend = obj.get("extend")
-    extend_sec = obj.get("extend_sec")
-    if extend not in ("是", "否"):
-        if debug: print(f"  - extend值错误: {extend} (需要'是'或'否')")
+    
+    try:
+        # 容忍 extend 的同义值
+        extend = obj.get("extend")
+        if isinstance(extend, str):
+            extend_lower = extend.lower().strip()
+            # 映射同义值
+            if extend_lower in ("是", "yes", "true", "1", "延长"):
+                extend = "是"
+            elif extend_lower in ("否", "no", "false", "0", "不延长"):
+                extend = "否"
+            else:
+                if debug: print(f"  - extend值无法识别: {extend}")
+                return None
+        elif isinstance(extend, bool):
+            extend = "是" if extend else "否"
+        else:
+            if debug: print(f"  - extend类型错误: {type(extend)}")
+            return None
+        
+        # 容忍数值字符串
+        extend_sec = obj.get("extend_sec")
+        if isinstance(extend_sec, str):
+            extend_sec = int(extend_sec)
+        elif not isinstance(extend_sec, int):
+            if debug: print(f"  - extend_sec 无法转为 int: {extend_sec}")
+            return None
+        
+        if extend_sec < 0:
+            if debug: print(f"  - extend_sec < 0: {extend_sec}")
+            return None
+        
+        return {"extend": extend, "extend_sec": int(extend_sec)}
+    
+    except (ValueError, TypeError) as e:
+        if debug: print(f"  - 转换错误: {e}")
         return None
-    if not isinstance(extend_sec, int) or extend_sec < 0:
-        if debug: print(f"  - extend_sec类型或值错误: {extend_sec}")
-        return None
-    return {"extend": extend, "extend_sec": extend_sec}
+
+
+def _apply_tls_phase_durations(tl_id: str, durations: List[int]):
+    """
+    应用保存的 TLS 程序相位时长（用于回放时复现随机配时）。
+    
+    Args:
+        tl_id: 信号灯ID
+        durations: 各相位的duration列表
+    """
+    import traci
+    
+    if not durations:
+        return
+    
+    try:
+        logics = traci.trafficlight.getAllProgramLogics(tl_id)
+        if not logics:
+            return
+        logic = logics[0]
+        
+        # 确保durations数量与phases数量匹配
+        if len(durations) != len(logic.phases):
+            return
+        
+        phases = []
+        for i, ph in enumerate(logic.phases):
+            new_dur = durations[i]
+            phases.append(traci.trafficlight.Phase(new_dur, ph.state, ph.minDur, ph.maxDur, ph.next))
+        
+        new_logic = traci.trafficlight.Logic(
+            logic.programID,
+            logic.type,
+            logic.currentPhaseIndex,
+            phases,
+            logic.subParameter,
+        )
+        traci.trafficlight.setProgramLogic(tl_id, new_logic)
+    except Exception as e:
+        print(f"应用 tls_phase_durations 失败: {e}")
 
 
 def _get_phase_incoming_lanes(simulator: SUMOSimulator, tl_id: str, phase_id: int) -> List[str]:
@@ -254,7 +366,7 @@ def _simulate_phase_window(
             pass
 
     if duration <= 0:
-        return {"passed_total": 0.0, "avg_queue_veh": 0.0}
+        return {"passed_total": 0.0, "avg_passed_veh": 0.0, "avg_queue_veh": 0.0}
 
     # 防御性检查：确保目标相位是绿灯相位
     phase_info = simulator.get_phase_info(tl_id)
@@ -264,7 +376,7 @@ def _simulate_phase_window(
         target_state = phase_states[target_idx]
         if not (("G" in target_state) or ("g" in target_state)):
             # 非绿灯相位，返回零 reward
-            return {"passed_total": 0.0, "avg_queue_veh": 0.0}
+            return {"passed_total": 0.0, "avg_passed_veh": 0.0, "avg_queue_veh": 0.0}
 
     traci.trafficlight.setPhase(tl_id, target_idx)
     traci.trafficlight.setPhaseDuration(tl_id, duration)
@@ -288,8 +400,9 @@ def _simulate_phase_window(
             pass
 
     passed_total = float(len(vehicles_before - vehicles_after))
+    avg_passed_veh = passed_total / max(1, duration)  # 平均通过车辆数
     avg_queue = float(total_queue / max(1, duration))
-    return {"passed_total": passed_total, "avg_queue_veh": avg_queue}
+    return {"passed_total": passed_total, "avg_passed_veh": avg_passed_veh, "avg_queue_veh": avg_queue}
 
 
 # ==================== 并行 Worker 函数 ====================
@@ -304,8 +417,9 @@ def _evaluate_single_completion(args: tuple) -> float:
         float: 该completion的reward
     """
     (completion_text, state_path, scenario, tl_id, sumocfg,
-     task_type, phase_ids, decision_lead_sec, wait_time,
-     phase_order, phase_limits) = args
+     task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
+     wait_time, phase_order, phase_limits, current_elapsed,
+     tls_phase_durations) = args
     
     try:
         # 创建独立的simulator实例
@@ -344,17 +458,29 @@ def _evaluate_single_completion(args: tuple) -> float:
                 simulator.close()
                 return float(REWARD_CONFIG['invalid_output_reward'])
             
-            # 推进到决策点
-            for _ in range(int(decision_lead_sec)):
+            # 检查 green_sec 范围
+            min_green = REWARD_CONFIG['green_sec_min']
+            max_green = REWARD_CONFIG['green_sec_max']
+            if not (min_green <= green_sec <= max_green):
+                print(f"[DEBUG] green_sec={green_sec} 超出范围 [{min_green}, {max_green}]")
+                simulator.close()
+                return float(REWARD_CONFIG['invalid_output_reward'])
+            
+            # 应用 tls_phase_durations
+            _apply_tls_phase_durations(tl_id, tls_phase_durations)
+            
+            # 使用 decision_remaining_sec 推进
+            decision_rem = decision_remaining_sec if decision_remaining_sec is not None else int(decision_lead_sec)
+            for _ in range(int(max(0, decision_rem))):
                 traci.simulationStep()
             
             # 模拟phase window
             sim_metrics = _simulate_phase_window(simulator, tl_id, next_phase_id, green_sec)
             
-            passed_total = sim_metrics["passed_total"]
+            avg_passed = sim_metrics["avg_passed_veh"]
             avg_queue = sim_metrics["avg_queue_veh"]
             reward = (
-                REWARD_CONFIG["alpha_passed"] * passed_total
+                REWARD_CONFIG["alpha_passed"] * avg_passed
                 - REWARD_CONFIG["beta_queue"] * avg_queue
             )
             
@@ -371,11 +497,21 @@ def _evaluate_single_completion(args: tuple) -> float:
             extend = parsed["extend"]
             extend_sec = int(parsed["extend_sec"])
             
+            # 应用 tls_phase_durations
+            _apply_tls_phase_durations(tl_id, tls_phase_durations)
+            
+            # 使用传入的 current_elapsed（更稳定）
+            if current_elapsed is None:
+                # 兜底
+                current_phase_idx = traci.trafficlight.getPhase(tl_id)
+                planned_green = int(round(traci.trafficlight.getPhaseDuration(tl_id)))
+                remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
+                current_elapsed = int(max(0, round(planned_green - remaining)))
+            else:
+                current_elapsed = int(current_elapsed)
+            
             current_phase_idx = traci.trafficlight.getPhase(tl_id)
             current_phase_id = current_phase_idx + 1
-            planned_green = int(round(traci.trafficlight.getPhaseDuration(tl_id)))
-            remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
-            current_elapsed = int(max(0, round(planned_green - remaining)))
             
             if not phase_limits:
                 simulator.close()
@@ -407,10 +543,10 @@ def _evaluate_single_completion(args: tuple) -> float:
             duration = extend_sec + int(wait_time) if extend == "是" else int(wait_time)
             sim_metrics = _simulate_phase_window(simulator, tl_id, current_phase_id, duration)
             
-            passed_total = sim_metrics["passed_total"]
+            avg_passed = sim_metrics["avg_passed_veh"]
             avg_queue = sim_metrics["avg_queue_veh"]
             reward = (
-                REWARD_CONFIG["alpha_passed"] * passed_total
+                REWARD_CONFIG["alpha_passed"] * avg_passed
                 - REWARD_CONFIG["beta_queue"] * avg_queue
             )
             
@@ -478,9 +614,9 @@ def tsc_reward_fn(
     # 将 completions 转为文本（如果是 messages 格式）
     completion_texts = []
     for c in completions:
-        if isinstance(c, list) and len(c) > 0 and isinstance(c[0], dict):
-            # messages 格式：[{"role": "assistant", "content": "..."}]
-            completion_texts.append(c[0].get('content', ''))
+        if isinstance(c, list) and len(c) > 0 and isinstance(c[-1], dict):
+            # messages 格式：取最后一条消息（通常是 assistant 输出）
+            completion_texts.append(c[-1].get('content', ''))
         else:
             completion_texts.append(str(c))
     
@@ -517,13 +653,22 @@ def tsc_reward_fn(
             decision_lead_sec = decision_lead_secs[sample_idx] if decision_lead_secs else 10
             wait_time = wait_times[sample_idx] if wait_times else 0
             
-            # 查找sumocfg
-            scenario_dir = os.path.join('sumo_simulation/environments', scenario)
-            sumocfg = None
-            for f in os.listdir(scenario_dir):
-                if f.endswith('.sumocfg'):
-                    sumocfg = os.path.join(scenario_dir, f)
-                    break
+            # 提取新增字段
+            sumocfg_paths = kwargs.get('sumocfg_path', [])
+            decision_remaining_secs = kwargs.get('decision_remaining_sec', [])
+            elapsed_list = kwargs.get('current_phase_elapsed_sec', [])
+            tls_durs_list = kwargs.get('tls_phase_durations', [])
+            
+            # 优先使用 dataset 的 sumocfg_path，否则兜底查找
+            if sumocfg_paths and sample_idx < len(sumocfg_paths):
+                sumocfg = sumocfg_paths[sample_idx]
+            else:
+                scenario_dir = os.path.join('sumo_simulation/environments', scenario)
+                sumocfg = None
+                for f in os.listdir(scenario_dir):
+                    if f.endswith('.sumocfg'):
+                        sumocfg = os.path.join(scenario_dir, f)
+                        break
             
             if not sumocfg:
                 tasks.append(None)  # 标记为无效任务
@@ -532,16 +677,30 @@ def tsc_reward_fn(
             # phase_order和phase_limits只在某些任务类型中需要
             phase_order = None
             phase_limits = None
-            if task_type == "extend_decision":
+            current_elapsed = None
+            decision_remaining_sec = None
+            tls_phase_durations = []
+            
+            if task_type == "signal_step":
+                if decision_remaining_secs and sample_idx < len(decision_remaining_secs):
+                    decision_remaining_sec = decision_remaining_secs[sample_idx]
+                if tls_durs_list and sample_idx < len(tls_durs_list):
+                    tls_phase_durations = tls_durs_list[sample_idx]
+            elif task_type == "extend_decision":
                 if phase_orders and sample_idx < len(phase_orders):
                     phase_order = phase_orders[sample_idx]
                 if phase_limits_list and sample_idx < len(phase_limits_list):
                     phase_limits = phase_limits_list[sample_idx]
+                if elapsed_list and sample_idx < len(elapsed_list):
+                    current_elapsed = elapsed_list[sample_idx]
+                if tls_durs_list and sample_idx < len(tls_durs_list):
+                    tls_phase_durations = tls_durs_list[sample_idx]
             
             tasks.append((
                 completion_text, state_path, scenario, tl_id, sumocfg,
-                task_type, phase_ids, decision_lead_sec, wait_time,
-                phase_order, phase_limits
+                task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
+                wait_time, phase_order, phase_limits, current_elapsed,
+                tls_phase_durations
             ))
         
         # 使用进程池并行计算
@@ -592,14 +751,18 @@ def tsc_reward_fn(
         phase_order = None
         phase_limits = None
         
-        # 查找对应的 sumocfg（从 state_path 推断）
-        # state_path 格式: grpo_states/<scenario>/<tl_id>_step<i>_t<time>.xml
-        scenario_dir = os.path.join('sumo_simulation/environments', scenario)
-        sumocfg = None
-        for f in os.listdir(scenario_dir):
-            if f.endswith('.sumocfg'):
-                sumocfg = os.path.join(scenario_dir, f)
-                break
+        # 优先使用 dataset 的 sumocfg_path，否则兜底查找
+        sumocfg_paths = kwargs.get('sumocfg_path', [])
+        if sumocfg_paths and sample_idx < len(sumocfg_paths):
+            sumocfg = sumocfg_paths[sample_idx]
+        else:
+            # 兜底：从 state_path 推断
+            scenario_dir = os.path.join('sumo_simulation/environments', scenario)
+            sumocfg = None
+            for f in os.listdir(scenario_dir):
+                if f.endswith('.sumocfg'):
+                    sumocfg = os.path.join(scenario_dir, f)
+                    break
         
         if not sumocfg:
             print(f"警告: 找不到 sumocfg for {scenario}, 返回负奖励")
@@ -630,13 +793,31 @@ def tsc_reward_fn(
                         continue
                     next_phase_id = parsed["next_phase_id"]
                     green_sec = parsed["green_sec"]
+                    
+                    # 检查 phase_id 有效性
                     if phase_ids and next_phase_id not in phase_ids:
                         print(f"[DEBUG 顺序] next_phase_id={next_phase_id} 不在 phase_ids={phase_ids}")
                         rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
                         continue
-
-                    # 从决策点推进到相位结束
-                    for _ in range(int(decision_lead_sec)):
+                    
+                    # 检查 green_sec 范围
+                    min_green = REWARD_CONFIG['green_sec_min']
+                    max_green = REWARD_CONFIG['green_sec_max']
+                    if not (min_green <= green_sec <= max_green):
+                        print(f"[DEBUG 顺序] green_sec={green_sec} 超出范围 [{min_green}, {max_green}]")
+                        rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
+                        continue
+                    
+                    # 应用保存的 tls_phase_durations（复现随机配时）
+                    tls_phase_durations_list = kwargs.get('tls_phase_durations', [])
+                    if tls_phase_durations_list and sample_idx < len(tls_phase_durations_list):
+                        tls_durs = tls_phase_durations_list[sample_idx]
+                        _apply_tls_phase_durations(tl_id, tls_durs)
+                    
+                    # 使用 dataset 的 decision_remaining_sec 推进到相位切换点
+                    decision_remaining_secs = kwargs.get('decision_remaining_sec', [])
+                    decision_rem = decision_remaining_secs[sample_idx] if decision_remaining_secs and sample_idx < len(decision_remaining_secs) else int(decision_lead_sec)
+                    for _ in range(int(max(0, decision_rem))):
                         traci.simulationStep()
 
                     sim_metrics = _simulate_phase_window(
@@ -646,10 +827,10 @@ def tsc_reward_fn(
                         green_sec,
                     )
 
-                    passed_total = sim_metrics["passed_total"]
+                    avg_passed = sim_metrics["avg_passed_veh"]
                     avg_queue = sim_metrics["avg_queue_veh"]
                     reward = (
-                        REWARD_CONFIG["alpha_passed"] * passed_total
+                        REWARD_CONFIG["alpha_passed"] * avg_passed
                         - REWARD_CONFIG["beta_queue"] * avg_queue
                     )
                     rewards.append(float(reward))
@@ -663,12 +844,26 @@ def tsc_reward_fn(
                         continue
                     extend = parsed["extend"]
                     extend_sec = int(parsed["extend_sec"])
+                    
+                    # 应用保存的 tls_phase_durations（复现随机配时）
+                    tls_phase_durations_list = kwargs.get('tls_phase_durations', [])
+                    if tls_phase_durations_list and sample_idx < len(tls_phase_durations_list):
+                        tls_durs = tls_phase_durations_list[sample_idx]
+                        _apply_tls_phase_durations(tl_id, tls_durs)
 
+                    # 使用 dataset 的 current_phase_elapsed_sec（更稳定）
+                    elapsed_list = kwargs.get('current_phase_elapsed_sec', [])
+                    if elapsed_list and sample_idx < len(elapsed_list):
+                        current_elapsed = int(elapsed_list[sample_idx])
+                    else:
+                        # 兜底：从traci推导（不推荐）
+                        current_phase_idx = traci.trafficlight.getPhase(tl_id)
+                        planned_green = int(round(traci.trafficlight.getPhaseDuration(tl_id)))
+                        remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
+                        current_elapsed = int(max(0, round(planned_green - remaining)))
+                    
                     current_phase_idx = traci.trafficlight.getPhase(tl_id)
                     current_phase_id = current_phase_idx + 1
-                    planned_green = int(round(traci.trafficlight.getPhaseDuration(tl_id)))
-                    remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
-                    current_elapsed = int(max(0, round(planned_green - remaining)))
 
                     # extend_decision 任务需要 phase_limits
                     if phase_limits_list and sample_idx < len(phase_limits_list):
@@ -706,10 +901,10 @@ def tsc_reward_fn(
                         current_phase_id,
                         duration,
                     )
-                    passed_total = sim_metrics["passed_total"]
+                    avg_passed = sim_metrics["avg_passed_veh"]
                     avg_queue = sim_metrics["avg_queue_veh"]
                     reward = (
-                        REWARD_CONFIG["alpha_passed"] * passed_total
+                        REWARD_CONFIG["alpha_passed"] * avg_passed
                         - REWARD_CONFIG["beta_queue"] * avg_queue
                     )
                     rewards.append(float(reward))

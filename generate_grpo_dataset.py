@@ -228,19 +228,27 @@ def _randomize_tl_program_durations(
     tl_id: str,
     scale_range: Tuple[float, float],
     rng: random.Random,
-):
+) -> List[int]:
+    """
+    随机缩放信号灯程序的相位时长，并返回修改后的durations列表（用于回放时复现）。
+    
+    Returns:
+        List[int]: 各相位的duration列表（秒）；失败时返回空列表
+    """
     import traci
 
     try:
         logics = traci.trafficlight.getAllProgramLogics(tl_id)
         if not logics:
-            return
+            return []
         logic = logics[0]
         phases = []
+        durations = []
         for ph in logic.phases:
             scale = rng.uniform(scale_range[0], scale_range[1])
             new_dur = max(1, int(round(ph.duration * scale)))
             phases.append(traci.trafficlight.Phase(new_dur, ph.state, ph.minDur, ph.maxDur, ph.next))
+            durations.append(new_dur)
         new_logic = traci.trafficlight.Logic(
             logic.programID,
             logic.type,
@@ -249,9 +257,10 @@ def _randomize_tl_program_durations(
             logic.subParameter,
         )
         traci.trafficlight.setProgramLogic(tl_id, new_logic)
+        return durations
     except Exception:
         # 若修改失败，保持默认配时
-        return
+        return []
 
 
 def _init_phase_tracking(simulator: SUMOSimulator, tl_id: str) -> Dict[str, Any]:
@@ -516,7 +525,7 @@ def generate_dataset_for_one_tl_two_scenarios(
             break
 
         rng = random.Random((hash(scenario_name) ^ hash(tl_id) ^ step_idx) & 0xFFFFFFFF)
-        _randomize_tl_program_durations(tl_id, scale_range, rng)
+        tls_phase_durations = _randomize_tl_program_durations(tl_id, scale_range, rng)
 
         # 推进到绿灯结束前 decision_lead_sec 秒
         max_guard_steps = 600
@@ -534,9 +543,12 @@ def generate_dataset_for_one_tl_two_scenarios(
 
         phase_idx, phase_state = _get_current_phase_state(simulator, tl_id)
         current_phase_id = phase_idx + 1
-        planned_green = int(round(traci.trafficlight.getPhaseDuration(tl_id)))
         remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
-        current_elapsed = int(max(0, round(planned_green - remaining)))
+        decision_remaining_sec = int(max(0, round(remaining)))
+        
+        # 用 track 计算 elapsed（更稳定）
+        current_elapsed = int(round(traci.simulation.getTime() - track["phase_start_time"]))
+        current_planned_green = current_elapsed + decision_remaining_sec
 
         phase_metrics_now = _collect_phase_metrics_now(
             simulator,
@@ -553,7 +565,7 @@ def generate_dataset_for_one_tl_two_scenarios(
             phase_lane_map=phase_lane_map,
             current_phase_id=current_phase_id,
             current_phase_elapsed_sec=current_elapsed,
-            current_phase_planned_green_sec=planned_green,
+            current_phase_planned_green_sec=current_planned_green,
             phase_metrics_now=phase_metrics_now,
         )
 
@@ -574,6 +586,11 @@ def generate_dataset_for_one_tl_two_scenarios(
             'phase_ids': phase_ids,
             'phase_lane_map': phase_lane_map,
             'decision_lead_sec': decision_lead_sec,
+            'decision_remaining_sec': decision_remaining_sec,
+            'current_phase_elapsed_sec': current_elapsed,
+            'current_phase_planned_green_sec': current_planned_green,
+            'sumocfg_path': env_info['sumocfg'],
+            'tls_phase_durations': tls_phase_durations,
         })
 
         # 轻微推进仿真，避免同一状态
@@ -630,6 +647,13 @@ def generate_dataset_for_one_tl_two_scenarios(
 
         current_phase_id = track["phase_idx"] + 1
         elapsed = int(round(traci.simulation.getTime() - track["phase_start_time"]))
+        
+        # 记录当前 TLS 程序的 durations（用于回放时复现）
+        try:
+            logics = traci.trafficlight.getAllProgramLogics(tl_id)
+            tls_phase_durations = [int(ph.duration) for ph in logics[0].phases] if logics else []
+        except Exception:
+            tls_phase_durations = []
 
         phase_metrics_now = _collect_phase_metrics_now(
             simulator,
@@ -669,6 +693,9 @@ def generate_dataset_for_one_tl_two_scenarios(
             'phase_limits': phase_limits,
             'phase_lane_map': phase_lane_map,
             'wait_time_for_phase_change': wait_time,
+            'current_phase_elapsed_sec': elapsed,
+            'sumocfg_path': env_info['sumocfg'],
+            'tls_phase_durations': tls_phase_durations,
         })
 
         for _ in range(5):

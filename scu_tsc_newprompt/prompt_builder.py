@@ -124,15 +124,16 @@ def wrap_signal_step_prompt(payload: Dict[str, Any]) -> str:
 1. 你必须显式利用 avg_queue_veh 与 passed_veh_in_current_green 来决策；不得无视输入随意给出答案。
 2. 在缺少任何额外硬约束（不提供 cycle_constraints / phase_order / phase_limits / history）的情况下：
    * next_phase_id 必须来自 scenario.phase_ids；
-   * green_sec 必须为正整数秒；
+   * green_sec 必须为正整数秒，且必须在 [1, 120] 范围内；
    * green_sec 必须"合理"：队列更大/通过更少的相位倾向给更长绿；队列更小/通过更多的相位倾向给更短绿；
    * 若多相位需求接近，可优先切换到非当前相位以降低其他相位等待的累积风险。
 
 输出要求（必须严格遵守）：
-1. 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。
+1. 只输出最终 JSON（不要任何说明、不要 Markdown 代码块、不要额外文本、不要复述规则、不要输出推理过程）。
 2. JSON 必须为对象，且仅包含两个字段：
    {{"next_phase_id": <int>, "green_sec": <int>}}
-3. 不允许输出其它字段。"""
+3. green_sec 必须在 [1, 120] 范围内。
+4. 不允许输出其它字段，不允许添加任何解释性文本。"""
     
     return prompt
 
@@ -205,10 +206,12 @@ def wrap_extend_decision_prompt(payload: Dict[str, Any]) -> str:
 3. extend_sec 必须为整数秒，且 extend_sec ≥ 0。若 state.current_phase_elapsed_sec + state.wait_time_for_phase_change 已经 ≥ phase_limits[current_phase_id].max_green，则必须输出不延长：extend_sec=0。
 
 输出要求（必须严格遵守）：
-1. 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。
+1. 只输出最终 JSON（不要任何说明、不要 Markdown 代码块、不要额外文本、不要复述规则、不要输出推理过程）。
 2. JSON 顶层必须是对象，且仅包含两个字段：
    {{"extend": "<是/否>", "extend_sec": <int>}}
-3. 不允许输出其它字段。"""
+3. extend 的值必须是"是"或"否"（不要用 yes/no/true/false）。
+4. extend_sec 必须为非负整数。
+5. 不允许输出其它字段，不允许添加任何解释性文本。"""
     
     return prompt
 
