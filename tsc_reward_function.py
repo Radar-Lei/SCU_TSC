@@ -951,7 +951,14 @@ def tsc_reward_format_fn(
         else:
             completion_texts.append(str(c))
 
-    num_generations = len(completion_texts) // len(task_types) if task_types else 1
+    # 优先使用 kwargs 中的 num_generations；否则用 prompts 长度推断
+    num_generations = kwargs.get('num_generations')
+    if not num_generations:
+        num_generations = len(completion_texts) // max(1, len(prompts))
+    num_generations = max(1, int(num_generations))
+    
+    # 检测 task_types 是否按 completion 展开
+    task_types_expanded = (len(task_types) == len(completion_texts))
 
     trainer_state = kwargs.get("trainer_state", None)
     global_step = getattr(trainer_state, "global_step", None)
@@ -962,8 +969,8 @@ def tsc_reward_format_fn(
     reasons: List[str] = []
 
     for i, completion_text in enumerate(completion_texts):
-        sample_idx = i // max(1, num_generations)
-        task_type = task_types[sample_idx] if task_types else None
+        sample_idx = i if task_types_expanded else (i // max(1, num_generations))
+        task_type = task_types[sample_idx] if (task_types and sample_idx < len(task_types)) else None
 
         action, reason = parse_output(completion_text, str(task_type), debug=False)
         if not action:
@@ -1003,8 +1010,8 @@ def tsc_reward_format_fn(
     try:
         _REWARD_DIAG["window_total"] += len(rewards)
         for i, (r, reason) in enumerate(zip(rewards, reasons)):
-            sample_idx = i // max(1, num_generations)
-            task_type = task_types[sample_idx] if task_types else "unknown"
+            sample_idx = i if task_types_expanded else (i // max(1, num_generations))
+            task_type = task_types[sample_idx] if (task_types and sample_idx < len(task_types)) else "unknown"
             _REWARD_DIAG["window_total_by_task"][task_type] += 1
             if float(r) == invalid_reward:
                 _REWARD_DIAG["window_invalid"] += 1
@@ -1141,15 +1148,22 @@ def tsc_reward_sim_fn(
         else:
             completion_texts.append(str(c))
 
-    num_generations = len(completion_texts) // len(state_paths) if len(state_paths) > 0 else 1
+    # 优先使用 kwargs 中的 num_generations；否则用 prompts 长度推断
+    num_generations = kwargs.get('num_generations')
+    if not num_generations:
+        num_generations = len(completion_texts) // max(1, len(prompts))
+    num_generations = max(1, int(num_generations))
+    
+    # 检测 state_paths 是否按 completion 展开
+    state_paths_expanded = (len(state_paths) == len(completion_texts))
     sim_rewards = [0.0] * len(completion_texts)
 
     tasks = []
     task_indices = []
 
     for i, completion_text in enumerate(completion_texts):
-        sample_idx = i // max(1, num_generations)
-        task_type = task_types[sample_idx] if task_types else None
+        sample_idx = i if state_paths_expanded else (i // max(1, num_generations))
+        task_type = task_types[sample_idx] if (task_types and sample_idx < len(task_types)) else None
 
         action, _reason = parse_output(completion_text, str(task_type), debug=False)
         if not action:
@@ -1472,7 +1486,14 @@ def tsc_reward_fn(
             completion_texts.append(str(c))
     
     # 计算每个 prompt 生成的 completions 数量
-    num_generations = len(completion_texts) // len(state_paths) if len(state_paths) > 0 else 1
+    # 优先使用 kwargs 中的 num_generations；否则用 prompts 长度推断（prompts 通常不展开）
+    num_generations = kwargs.get('num_generations')
+    if not num_generations:
+        num_generations = len(completion_texts) // max(1, len(prompts))
+    num_generations = max(1, int(num_generations))
+    
+    # 检测 state_paths 是否按 completion 展开（长度 == completions）
+    state_paths_expanded = (len(state_paths) == len(completion_texts))
 
     trainer_state = kwargs.get("trainer_state", None)
     global_step = getattr(trainer_state, "global_step", None)
@@ -1520,7 +1541,8 @@ def tsc_reward_fn(
         # 准备并行任务参数
         tasks = []
         for i in range(len(completion_texts)):
-            sample_idx = i // num_generations
+            # 如果 state_paths 按 completion 展开，直接用 i；否则按组索引
+            sample_idx = i if state_paths_expanded else (i // num_generations)
             
             state_path = state_paths[sample_idx]
             scenario = scenarios[sample_idx]
@@ -1644,8 +1666,8 @@ def tsc_reward_fn(
                 invalid_value = float(REWARD_CONFIG["invalid_output_reward"])
                 _REWARD_DIAG["window_total"] += len(final_rewards)
                 for i, (r, reason) in enumerate(zip(final_rewards, final_reasons)):
-                    sample_idx = i // max(1, num_generations)
-                    task_type = task_types[sample_idx] if task_types else "unknown"
+                    sample_idx = i if state_paths_expanded else (i // max(1, num_generations))
+                    task_type = task_types[sample_idx] if (task_types and sample_idx < len(task_types)) else "unknown"
                     _REWARD_DIAG["window_total_by_task"][task_type] += 1
                     if float(r) == invalid_value:
                         _REWARD_DIAG["window_invalid"] += 1
@@ -1703,7 +1725,8 @@ def tsc_reward_fn(
     # 按样本逐个评估（每个样本对应一个 state_path）
     for i in range(len(completion_texts)):
         # 计算原始样本索引（同一 prompt 的多个 completions 共享相同的 dataset 字段）
-        sample_idx = i // num_generations
+        # 如果 state_paths 按 completion 展开，直接用 i
+        sample_idx = i if state_paths_expanded else (i // num_generations)
         
         state_path = state_paths[sample_idx]
         scenario = scenarios[sample_idx]
@@ -1902,8 +1925,8 @@ def tsc_reward_fn(
         invalid_value = float(REWARD_CONFIG["invalid_output_reward"])
         _REWARD_DIAG["window_total"] += len(rewards)
         for i, (r, reason) in enumerate(zip(rewards, reasons)):
-            sample_idx = i // max(1, num_generations)
-            task_type = task_types[sample_idx] if task_types else "unknown"
+            sample_idx = i if state_paths_expanded else (i // max(1, num_generations))
+            task_type = task_types[sample_idx] if (task_types and sample_idx < len(task_types)) else "unknown"
             _REWARD_DIAG["window_total_by_task"][task_type] += 1
             if float(r) == invalid_value:
                 _REWARD_DIAG["window_invalid"] += 1
