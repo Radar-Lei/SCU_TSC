@@ -396,6 +396,65 @@ def _parse_extend_decision_output(text: str, debug: bool = False) -> Union[Dict[
         return None
 
 
+def _extract_phase_limits_from_prompt(prompt_messages: List[dict]) -> Union[Dict[str, Any], None]:
+    """
+    从 prompt 文本中提取 phase_limits（用于 extend_decision 任务）。
+    
+    当 dataset 没有 phase_limits 列时，从 prompt 中的 JSON 提取。
+    """
+    if not prompt_messages:
+        return None
+    
+    # 获取 user message 内容
+    user_content = None
+    for msg in prompt_messages:
+        if msg.get('role') == 'user':
+            user_content = msg.get('content', '')
+            break
+    
+    if not user_content:
+        return None
+    
+    # 提取 extend_decision_input_json
+    match = re.search(r'【extend_decision_input_json】(.*?)【/extend_decision_input_json】', user_content, re.DOTALL)
+    if not match:
+        return None
+    
+    try:
+        data = json.loads(match.group(1))
+        return data.get('phase_limits')
+    except Exception:
+        return None
+
+
+def _extract_wait_time_from_prompt(prompt_messages: List[dict]) -> Union[int, None]:
+    """
+    从 prompt 文本中提取 wait_time_for_phase_change（用于 extend_decision 任务）。
+    """
+    if not prompt_messages:
+        return None
+    
+    user_content = None
+    for msg in prompt_messages:
+        if msg.get('role') == 'user':
+            user_content = msg.get('content', '')
+            break
+    
+    if not user_content:
+        return None
+    
+    match = re.search(r'【extend_decision_input_json】(.*?)【/extend_decision_input_json】', user_content, re.DOTALL)
+    if not match:
+        return None
+    
+    try:
+        data = json.loads(match.group(1))
+        state = data.get('state', {})
+        return state.get('wait_time_for_phase_change')
+    except Exception:
+        return None
+
+
 def _apply_tls_phase_durations(tl_id: str, durations: List[int]):
     """
     应用保存的 TLS 程序相位时长（用于回放时复现随机配时）。
@@ -962,8 +1021,23 @@ def tsc_reward_fn(
             elif task_type == "extend_decision":
                 if phase_orders and sample_idx < len(phase_orders):
                     phase_order = phase_orders[sample_idx]
-                if phase_limits_list and sample_idx < len(phase_limits_list):
+                
+                # phase_limits: 优先从 dataset 列获取，fallback 从 prompt 提取
+                if phase_limits_list and sample_idx < len(phase_limits_list) and phase_limits_list[sample_idx]:
                     phase_limits = phase_limits_list[sample_idx]
+                else:
+                    prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
+                    if isinstance(prompt_messages, list):
+                        phase_limits = _extract_phase_limits_from_prompt(prompt_messages)
+                
+                # wait_time: 优先从 dataset 列获取，fallback 从 prompt 提取
+                if not (wait_times and sample_idx < len(wait_times) and wait_times[sample_idx] is not None):
+                    prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
+                    if isinstance(prompt_messages, list):
+                        extracted_wait = _extract_wait_time_from_prompt(prompt_messages)
+                        if extracted_wait is not None:
+                            wait_time = extracted_wait
+                
                 if elapsed_list and sample_idx < len(elapsed_list):
                     current_elapsed = elapsed_list[sample_idx]
                 if tls_durs_list and sample_idx < len(tls_durs_list):
@@ -1077,7 +1151,18 @@ def tsc_reward_fn(
         task_type = task_types[sample_idx] if task_types else None
         phase_ids = phase_ids_list[sample_idx] if phase_ids_list else None
         decision_lead_sec = decision_lead_secs[sample_idx] if decision_lead_secs else 10
-        wait_time = wait_times[sample_idx] if wait_times else 0
+        
+        # wait_time: 优先从 dataset 列获取，fallback 从 prompt 提取
+        if wait_times and sample_idx < len(wait_times) and wait_times[sample_idx] is not None:
+            wait_time = wait_times[sample_idx]
+        else:
+            # Fallback: 从 prompt 中提取 wait_time_for_phase_change
+            prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
+            if isinstance(prompt_messages, list):
+                extracted_wait = _extract_wait_time_from_prompt(prompt_messages)
+                wait_time = extracted_wait if extracted_wait is not None else 0
+            else:
+                wait_time = 0
         
         # phase_order 和 phase_limits 只在某些任务类型中存在，延迟访问
         phase_order = None
@@ -1210,9 +1295,17 @@ def tsc_reward_fn(
                     current_phase_id = current_phase_idx + 1
 
                     # extend_decision 任务需要 phase_limits
-                    if phase_limits_list and sample_idx < len(phase_limits_list):
+                    # 优先从 dataset 列获取，fallback 从 prompt 提取
+                    phase_limits = None
+                    if phase_limits_list and sample_idx < len(phase_limits_list) and phase_limits_list[sample_idx]:
                         phase_limits = phase_limits_list[sample_idx]
                     else:
+                        # Fallback: 从 prompt 中提取 phase_limits
+                        prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
+                        if isinstance(prompt_messages, list):
+                            phase_limits = _extract_phase_limits_from_prompt(prompt_messages)
+                    
+                    if not phase_limits:
                         rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
                         reasons.append("extend_decision_phase_limits_missing")
                         continue
