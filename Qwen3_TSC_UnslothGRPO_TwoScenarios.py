@@ -183,6 +183,9 @@ print(f"Tokenizer bos_token_id: {tokenizer.bos_token_id}")
 from datasets import load_from_disk
 
 DATASET_PATH = "grpo_dataset_two_scenarios"
+EVAL_TEST_SIZE = 0.02
+EVAL_MAX_SAMPLES = 64
+EVAL_SEED = 42
 
 if not os.path.isdir(DATASET_PATH):
     raise FileNotFoundError(
@@ -193,6 +196,35 @@ if not os.path.isdir(DATASET_PATH):
 dataset = load_from_disk(DATASET_PATH)
 print(f"✓ Dataset 加载成功: {DATASET_PATH}")
 print(f"样本数: {len(dataset)}")
+
+# Split out a small eval set to track real progress.
+# Prefer stratified split by task_type so both tasks appear in eval.
+try:
+    from datasets import Dataset
+
+    if isinstance(dataset, Dataset) and ("task_type" in dataset.column_names):
+        split = dataset.train_test_split(
+            test_size=EVAL_TEST_SIZE,
+            seed=EVAL_SEED,
+            stratify_by_column="task_type",
+        )
+    else:
+        split = dataset.train_test_split(test_size=EVAL_TEST_SIZE, seed=EVAL_SEED)
+
+    train_dataset = split["train"]
+    eval_dataset = split["test"]
+    if len(eval_dataset) > EVAL_MAX_SAMPLES:
+        eval_dataset = eval_dataset.select(range(EVAL_MAX_SAMPLES))
+
+    print(f"✓ Train/Eval split: train={len(train_dataset)}, eval={len(eval_dataset)}")
+    if "task_type" in train_dataset.column_names:
+        from collections import Counter
+
+        print("  - eval task_type counts:", Counter(eval_dataset["task_type"]))
+except Exception as e:
+    print(f"⚠️ Train/Eval split skipped due to error: {e}")
+    train_dataset = dataset
+    eval_dataset = None
 
 # NOTE: Do NOT apply chat template here!
 # GRPOTrainer expects prompt to be a list of messages, not a formatted string.
@@ -223,6 +255,11 @@ from trl import GRPOConfig, GRPOTrainer
 # QUICK_VERIFY = True
 QUICK_VERIFY = False  # 正式训练设为 False
 
+# Eval 配置：eval_dataset 为空则自动禁用
+DO_EVAL = eval_dataset is not None
+EVAL_STEPS = 50
+EVAL_BATCH_SIZE = 4  # 必须能整除 num_generations
+
 config = GRPOConfig(
     output_dir="checkpoints/grpo_tsc_two_scenarios",
 
@@ -245,6 +282,13 @@ config = GRPOConfig(
 
     # GRPO 特定
     scale_rewards=True,
+
+    # Eval (track real progress on held-out states)
+    do_eval=DO_EVAL,
+    eval_strategy="steps" if DO_EVAL else "no",
+    eval_steps=EVAL_STEPS,
+    eval_on_start=DO_EVAL,
+    per_device_eval_batch_size=EVAL_BATCH_SIZE,  # must be divisible by num_generations
 
     # 日志与保存
     logging_steps=5,
@@ -277,14 +321,16 @@ trainer = GRPOTrainer(
     model=model,
     processing_class=tokenizer,
     args=config,
-    train_dataset=dataset,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
     reward_funcs=tsc_reward_fn,
 )
 
 
 
 print("✓ GRPOTrainer 创建成功")
-print(f"训练样本数: {len(dataset)}")
+print(f"训练样本数: {len(train_dataset)}")
+print(f"评估样本数: {0 if eval_dataset is None else len(eval_dataset)}")
 print(f"每 epoch steps: {len(trainer.get_train_dataloader())}")
 
 print("\n" + "="*60)
@@ -342,4 +388,3 @@ outputs = model.generate(
 generated_text = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 print(generated_text)
 print("-" * 60)
-
