@@ -18,8 +18,9 @@ from typing import List, Dict, Any, Union
 from collections import defaultdict
 import json
 import re
-from multiprocessing import Pool, cpu_count
+import multiprocessing as mp
 from functools import partial
+import atexit
 
 # 添加项目路径
 sumo_sim_path = os.path.join(os.getcwd(), 'sumo_simulation')
@@ -49,10 +50,44 @@ REWARD_CONFIG = {
     'alpha_passed': 1.0,
     'beta_queue': 0.5,
     'invalid_output_reward': -2.0,
-    'parallel_workers': 0,  # 默认单进程+复用SimulatorPool（更稳定）
+    'parallel_workers': 8,  # 使用spawn模式的全局常驻进程池，最多8个worker
     'green_sec_min': 1,     # signal_step 的 green_sec 下限
     'green_sec_max': 120,   # signal_step 的 green_sec 上限
 }
+
+
+# ==================== 全局 spawn 进程池（常驻） ====================
+# 使用 spawn 模式避免 fork 的线程安全问题
+_MP_CONTEXT = mp.get_context("spawn")
+_GLOBAL_MP_POOL = None  # 延迟初始化
+
+
+def _ensure_mp_pool_initialized():
+    """确保全局进程池已初始化（延迟初始化，避免import时启动）"""
+    global _GLOBAL_MP_POOL
+    if _GLOBAL_MP_POOL is None:
+        num_workers = min(REWARD_CONFIG['parallel_workers'], 8)  # 最多8个worker
+        if num_workers > 0:
+            print(f"[tsc_reward_function] 初始化 spawn 进程池，workers={num_workers}")
+            _GLOBAL_MP_POOL = _MP_CONTEXT.Pool(processes=num_workers)
+            # 注册 atexit 钩子确保程序退出时清理
+            atexit.register(_cleanup_mp_pool)
+    return _GLOBAL_MP_POOL
+
+
+def _cleanup_mp_pool():
+    """清理全局进程池"""
+    global _GLOBAL_MP_POOL
+    if _GLOBAL_MP_POOL is not None:
+        try:
+            print("[tsc_reward_function] 关闭 spawn 进程池...")
+            _GLOBAL_MP_POOL.close()
+            _GLOBAL_MP_POOL.join()
+            print("[tsc_reward_function] spawn 进程池已关闭")
+        except Exception as e:
+            print(f"[tsc_reward_function] 进程池关闭失败: {e}")
+        finally:
+            _GLOBAL_MP_POOL = None
 
 
 # ==================== Simulator 池管理 ====================
@@ -703,31 +738,37 @@ def tsc_reward_fn(
                 tls_phase_durations
             ))
         
-        # 使用进程池并行计算
-        num_workers = min(REWARD_CONFIG['parallel_workers'], len(completion_texts))
-        with Pool(processes=num_workers) as pool:
-            rewards = []
+        # 使用全局常驻 spawn 进程池并行计算
+        pool = _ensure_mp_pool_initialized()
+        if pool is None:
+            # 进程池未启用，回退到顺序模式
+            print("[警告] 进程池未启用，回退到顺序模式")
+        else:
+            # 过滤掉 None 任务，记录索引映射
+            valid_tasks = []
+            valid_indices = []
+            invalid_reward = float(REWARD_CONFIG['invalid_output_reward'])
+            
             for i, task in enumerate(tasks):
                 if task is None:
-                    rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
+                    pass  # 稍后填充
                 else:
-                    # 并行执行
-                    result = pool.apply_async(_evaluate_single_completion, (task,))
-                    rewards.append(result)
+                    valid_tasks.append(task)
+                    valid_indices.append(i)
             
-            # 等待所有任务完成并获取结果
-            final_rewards = []
-            for r in rewards:
-                if isinstance(r, float):
-                    final_rewards.append(r)
-                else:
-                    try:
-                        final_rewards.append(r.get(timeout=120))  # 最多等待2分钟
-                    except Exception as e:
-                        print(f"并行任务超时或失败: {e}")
-                        final_rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
-        
-        return final_rewards
+            # 使用 map 并行执行所有有效任务
+            try:
+                results = pool.map(_evaluate_single_completion, valid_tasks, chunksize=1)
+            except Exception as e:
+                print(f"[错误] 进程池 map 失败: {e}")
+                results = [invalid_reward] * len(valid_tasks)
+            
+            # 组装最终结果
+            final_rewards = [invalid_reward] * len(tasks)
+            for idx, result in zip(valid_indices, results):
+                final_rewards[idx] = result
+            
+            return final_rewards
     
     # ========== 顺序模式（原有逻辑） ==========
     rewards: List[float] = []
@@ -977,8 +1018,9 @@ def tsc_reward_fn(
 
 
 def cleanup_global_pool():
-    """清理全局 simulator 池（训练结束时调用）"""
+    """清理全局 simulator 池和进程池（训练结束时调用）"""
     _GLOBAL_POOL.close_all()
+    _cleanup_mp_pool()
 
 
 # ==================== 测试代码 ====================
