@@ -112,7 +112,10 @@ def reward_diag_snapshot(reset: bool = False) -> Dict[str, Any]:
 def reward_diag_last(global_step: int) -> Union[Dict[str, Any], None]:
     """Return per-batch diagnostics stored for a given global_step."""
     try:
-        return _REWARD_DIAG.get("last_batch_by_step", {}).get(int(global_step))
+        val = _REWARD_DIAG.get("last_batch_by_step", {}).get(int(global_step))
+        if val is None:
+            val = _REWARD_DIAG.get("last_batch_latest")
+        return val
     except Exception:
         return None
 
@@ -1405,6 +1408,12 @@ def tsc_reward_fn(
 
     trainer_state = kwargs.get("trainer_state", None)
     global_step = getattr(trainer_state, "global_step", None)
+    
+    # [Fix] Store latest batch consistently
+    if global_step is None:
+        # If not provided, try to infer or just use a placeholder
+        pass
+
     if _REWARD_DIAG.get("window_start_step") is None and global_step is not None:
         _REWARD_DIAG["window_start_step"] = int(global_step)
     
@@ -1565,34 +1574,39 @@ def tsc_reward_fn(
                         _REWARD_DIAG["window_invalid_by_task"][task_type] += 1
                     _REWARD_DIAG.setdefault("window_reason_by_task", {}).setdefault(task_type, Counter())[reason] += 1
 
+                # Calculate batch diagnostics ALWAYS
+                # grouped std per prompt
+                group_stds = []
+                if num_generations > 0 and (len(final_rewards) % num_generations == 0):
+                    for j in range(0, len(final_rewards), num_generations):
+                        grp = [float(x) for x in final_rewards[j : j + num_generations]]
+                        if len(grp) == num_generations and len(grp) > 1:
+                            m = sum(grp) / len(grp)
+                            var = sum((x - m) ** 2 for x in grp) / (len(grp) - 1)
+                            group_stds.append(var ** 0.5)
+                        else:
+                            group_stds.append(0.0)
+                frac_zero_std = None
+                if group_stds:
+                    frac_zero_std = sum(1 for s in group_stds if abs(s) < 1e-12) / len(group_stds)
+
+                sorted_rewards = sorted(float(x) for x in final_rewards)
+                med = sorted_rewards[len(sorted_rewards) // 2] if sorted_rewards else 0.0
+                batch_diag = {
+                    "n": len(final_rewards),
+                    "num_generations": int(num_generations),
+                    "reward_min": float(min(sorted_rewards)) if sorted_rewards else 0.0,
+                    "reward_median": float(med),
+                    "reward_max": float(max(sorted_rewards)) if sorted_rewards else 0.0,
+                    "reward_invalid_count": int(sum(1 for x in final_rewards if float(x) == invalid_value)),
+                    "frac_reward_zero_std": frac_zero_std,
+                }
+                
+                # Store latest
+                _REWARD_DIAG["last_batch_latest"] = batch_diag
+
                 if global_step is not None:
                     step_key = int(global_step)
-                    # grouped std per prompt
-                    group_stds = []
-                    if num_generations > 0 and (len(final_rewards) % num_generations == 0):
-                        for j in range(0, len(final_rewards), num_generations):
-                            grp = [float(x) for x in final_rewards[j : j + num_generations]]
-                            if len(grp) == num_generations and len(grp) > 1:
-                                m = sum(grp) / len(grp)
-                                var = sum((x - m) ** 2 for x in grp) / (len(grp) - 1)
-                                group_stds.append(var ** 0.5)
-                            else:
-                                group_stds.append(0.0)
-                    frac_zero_std = None
-                    if group_stds:
-                        frac_zero_std = sum(1 for s in group_stds if abs(s) < 1e-12) / len(group_stds)
-
-                    sorted_rewards = sorted(float(x) for x in final_rewards)
-                    med = sorted_rewards[len(sorted_rewards) // 2] if sorted_rewards else 0.0
-                    batch_diag = {
-                        "n": len(final_rewards),
-                        "num_generations": int(num_generations),
-                        "reward_min": float(min(sorted_rewards)) if sorted_rewards else 0.0,
-                        "reward_median": float(med),
-                        "reward_max": float(max(sorted_rewards)) if sorted_rewards else 0.0,
-                        "reward_invalid_count": int(sum(1 for x in final_rewards if float(x) == invalid_value)),
-                        "frac_reward_zero_std": frac_zero_std,
-                    }
                     _REWARD_DIAG.setdefault("last_batch_by_step", {})[step_key] = batch_diag
 
                     # Bound memory
@@ -1818,34 +1832,39 @@ def tsc_reward_fn(
                 _REWARD_DIAG["window_invalid_by_task"][task_type] += 1
             _REWARD_DIAG.setdefault("window_reason_by_task", {}).setdefault(task_type, Counter())[reason] += 1
 
+        # Calculate batch diagnostics ALWAYS
+        # grouped std per prompt
+        group_stds = []
+        if num_generations > 0 and (len(rewards) % num_generations == 0):
+            for j in range(0, len(rewards), num_generations):
+                grp = [float(x) for x in rewards[j : j + num_generations]]
+                if len(grp) == num_generations and len(grp) > 1:
+                    m = sum(grp) / len(grp)
+                    var = sum((x - m) ** 2 for x in grp) / (len(grp) - 1)
+                    group_stds.append(var ** 0.5)
+                else:
+                    group_stds.append(0.0)
+        frac_zero_std = None
+        if group_stds:
+            frac_zero_std = sum(1 for s in group_stds if abs(s) < 1e-12) / len(group_stds)
+
+        sorted_rewards = sorted(float(x) for x in rewards)
+        med = sorted_rewards[len(sorted_rewards) // 2] if sorted_rewards else 0.0
+        batch_diag = {
+            "n": len(rewards),
+            "num_generations": int(num_generations),
+            "reward_min": float(min(sorted_rewards)) if sorted_rewards else 0.0,
+            "reward_median": float(med),
+            "reward_max": float(max(sorted_rewards)) if sorted_rewards else 0.0,
+            "reward_invalid_count": int(sum(1 for x in rewards if float(x) == invalid_value)),
+            "frac_reward_zero_std": frac_zero_std,
+        }
+        
+        # Store latest
+        _REWARD_DIAG["last_batch_latest"] = batch_diag
+
         if global_step is not None:
             step_key = int(global_step)
-            # grouped std per prompt
-            group_stds = []
-            if num_generations > 0 and (len(rewards) % num_generations == 0):
-                for j in range(0, len(rewards), num_generations):
-                    grp = [float(x) for x in rewards[j : j + num_generations]]
-                    if len(grp) == num_generations and len(grp) > 1:
-                        m = sum(grp) / len(grp)
-                        var = sum((x - m) ** 2 for x in grp) / (len(grp) - 1)
-                        group_stds.append(var ** 0.5)
-                    else:
-                        group_stds.append(0.0)
-            frac_zero_std = None
-            if group_stds:
-                frac_zero_std = sum(1 for s in group_stds if abs(s) < 1e-12) / len(group_stds)
-
-            sorted_rewards = sorted(float(x) for x in rewards)
-            med = sorted_rewards[len(sorted_rewards) // 2] if sorted_rewards else 0.0
-            batch_diag = {
-                "n": len(rewards),
-                "num_generations": int(num_generations),
-                "reward_min": float(min(sorted_rewards)) if sorted_rewards else 0.0,
-                "reward_median": float(med),
-                "reward_max": float(max(sorted_rewards)) if sorted_rewards else 0.0,
-                "reward_invalid_count": int(sum(1 for x in rewards if float(x) == invalid_value)),
-                "frac_reward_zero_std": frac_zero_std,
-            }
             _REWARD_DIAG.setdefault("last_batch_by_step", {})[step_key] = batch_diag
 
             # Bound memory
