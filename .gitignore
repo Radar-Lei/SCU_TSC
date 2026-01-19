@@ -5,3 +5,13 @@ outputs_tsc/
 grpo_trainer_lora_model/
 data_TSC/
 .venv/
+sumo_simulation/
+sumo_docs/
+sumo_simulation copy/
+grpo_dataset_two_scenarios/
+sft_dataset_synthetic/
+grpo_states_two_scenarios/
+checkpoints/
+__pycache__/
+unsloth_compiled_cache/
+unsloth_compiled_cache/
