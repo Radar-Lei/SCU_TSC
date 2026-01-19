@@ -52,7 +52,12 @@ REWARD_CONFIG = {
     'alpha_passed': 1.0,
     'beta_queue': 0.5,
     'invalid_output_reward': -2.0,
-    'parallel_workers': 8,  # 使用spawn模式的全局常驻进程池，最多8个worker
+    # Multi-reward mode (when using GRPOTrainer(reward_funcs=[sim, format]))
+    'format_reward_valid': 0.5,
+    'format_reward_invalid': -0.5,
+    'sim_reward_clip_min': -1.0,
+    'sim_reward_clip_max': 1.0,
+    'parallel_workers': 16,  # reward时不使用SUMO并行（设为0禁用），并行代码保留供后续使用
     'green_sec_min': 1,     # signal_step 的 green_sec 下限
     'green_sec_max': 120,   # signal_step 的 green_sec 上限
 }
@@ -116,7 +121,7 @@ def _ensure_mp_pool_initialized():
     """确保全局进程池已初始化（延迟初始化，避免import时启动）"""
     global _GLOBAL_MP_POOL
     if _GLOBAL_MP_POOL is None:
-        num_workers = min(REWARD_CONFIG['parallel_workers'], 8)  # 最多8个worker
+        num_workers = REWARD_CONFIG['parallel_workers']
         if num_workers > 0:
             print(f"[tsc_reward_function] 初始化 spawn 进程池，workers={num_workers}")
             _GLOBAL_MP_POOL = _MP_CONTEXT.Pool(processes=num_workers)
@@ -396,6 +401,284 @@ def _parse_extend_decision_output(text: str, debug: bool = False) -> Union[Dict[
         return None
 
 
+# ==================== Reward Function Split (Parse / Validate / Score / Aggregate) ====================
+def parse_output(
+    completion_text: str,
+    task_type: str,
+    *,
+    debug: bool = False,
+) -> tuple[Union[Dict[str, Any], None], str]:
+    """
+    Parse a completion into a normalized action dict for a given task type.
+
+    Returns:
+        (action, reason)
+        - action: normalized dict or None if parsing failed
+        - reason: reason code (e.g. *_parse_failed, ok)
+    """
+    if task_type == "signal_step":
+        parsed = _parse_signal_step_output(completion_text, debug=debug)
+        if not parsed:
+            return None, "signal_step_parse_failed"
+        return parsed, "ok"
+
+    if task_type == "extend_decision":
+        parsed = _parse_extend_decision_output(completion_text, debug=debug)
+        if not parsed:
+            return None, "extend_decision_parse_failed"
+        return parsed, "ok"
+
+    return None, "unsupported_task_type"
+
+
+def validate_action(
+    task_type: str,
+    action: Dict[str, Any],
+    *,
+    phase_ids: Union[List[int], None] = None,
+    green_sec_min: Union[int, None] = None,
+    green_sec_max: Union[int, None] = None,
+    phase_limits: Union[Dict[str, Any], None] = None,
+    current_phase_id: Union[int, None] = None,
+    current_elapsed_sec: Union[int, None] = None,
+    wait_time_for_phase_change: Union[int, None] = None,
+) -> tuple[bool, str, Dict[str, Any]]:
+    """
+    Validate an action against task constraints. Returns (is_valid, reason, normalized_action).
+
+    Notes:
+      - For extend_decision, when already at max_green (considering wait_time), we normalize to extend="否"
+        if extend_sec==0; otherwise mark invalid with a dedicated reason.
+    """
+    wait_time = int(wait_time_for_phase_change or 0)
+
+    if task_type == "signal_step":
+        next_phase_id = int(action.get("next_phase_id"))
+        green_sec = int(action.get("green_sec"))
+
+        if phase_ids and next_phase_id not in phase_ids:
+            return False, "signal_step_phase_id_invalid", action
+
+        min_green = int(REWARD_CONFIG["green_sec_min"] if green_sec_min is None else green_sec_min)
+        max_green = int(REWARD_CONFIG["green_sec_max"] if green_sec_max is None else green_sec_max)
+        if not (min_green <= green_sec <= max_green):
+            return False, "signal_step_green_out_of_range", action
+
+        return True, "ok", action
+
+    if task_type == "extend_decision":
+        if not phase_limits:
+            return False, "extend_decision_phase_limits_missing", action
+
+        if current_phase_id is None:
+            return False, "extend_decision_current_phase_missing", action
+
+        limits = phase_limits.get(str(int(current_phase_id)), None) if isinstance(phase_limits, dict) else None
+        if not limits:
+            return False, "extend_decision_limits_missing_for_phase", action
+
+        min_green = int(limits["min_green"])
+        max_green = int(limits["max_green"])
+
+        if current_elapsed_sec is None:
+            return False, "extend_decision_current_elapsed_missing", action
+
+        extend = str(action.get("extend"))
+        extend_sec = int(action.get("extend_sec"))
+
+        if int(current_elapsed_sec) + wait_time >= max_green:
+            if extend_sec != 0:
+                return False, "extend_decision_extend_when_at_max_green", action
+            # normalize (avoid counting as error later)
+            action = {**action, "extend": "否"}
+            extend = "否"
+
+        if extend == "否" and extend_sec != 0:
+            return False, "extend_decision_extend_sec_nonzero_when_no", action
+
+        final_green = int(current_elapsed_sec) + extend_sec
+        if not (min_green <= final_green + wait_time <= max_green):
+            return False, "extend_decision_final_green_out_of_bounds", action
+
+        return True, "ok", action
+
+    return False, "unsupported_task_type", action
+
+
+def aggregate_reward(
+    *,
+    valid: bool,
+    sim_reward: float,
+    invalid_reward: float,
+    reward_components: Dict[str, Any],
+    error_tags: List[str],
+    reason: str,
+) -> Dict[str, Any]:
+    """
+    Aggregate reward components into a scalar reward, while carrying diagnostics.
+    """
+    final_reward = float(sim_reward) if valid else float(invalid_reward)
+    if not valid:
+        reward_components = {**(reward_components or {}), "invalid": 1.0}
+    return {
+        "reward": final_reward,
+        "reward_components": reward_components or {},
+        "error_tags": error_tags or [],
+        "reason": reason,
+    }
+
+
+def score_signal_step(
+    simulator: "SUMOSimulator",
+    tl_id: str,
+    action: Dict[str, Any],
+    *,
+    phase_ids: Union[List[int], None],
+    decision_lead_sec: int,
+    decision_remaining_sec: Union[int, None],
+    tls_phase_durations: Union[List[Any], None],
+    green_sec_min: Union[int, None] = None,
+    green_sec_max: Union[int, None] = None,
+) -> Dict[str, Any]:
+    """
+    Score a signal_step action by running a short SUMO roll-forward.
+    """
+    invalid = float(REWARD_CONFIG["invalid_output_reward"])
+    ok, reason, action = validate_action(
+        "signal_step",
+        action,
+        phase_ids=phase_ids,
+        green_sec_min=green_sec_min,
+        green_sec_max=green_sec_max,
+    )
+    if not ok:
+        return aggregate_reward(
+            valid=False,
+            sim_reward=0.0,
+            invalid_reward=invalid,
+            reward_components={"task": "signal_step"},
+            error_tags=[reason],
+            reason=reason,
+        )
+
+    import traci
+
+    _apply_tls_phase_durations(tl_id, tls_phase_durations or [])
+
+    decision_rem = decision_remaining_sec if decision_remaining_sec is not None else int(decision_lead_sec)
+    for _ in range(int(max(0, decision_rem))):
+        traci.simulationStep()
+
+    next_phase_id = int(action["next_phase_id"])
+    green_sec = int(action["green_sec"])
+    sim_metrics = _simulate_phase_window(simulator, tl_id, next_phase_id, green_sec)
+
+    avg_passed = float(sim_metrics["avg_passed_veh"])
+    avg_queue = float(sim_metrics["avg_queue_veh"])
+    sim_reward = float(REWARD_CONFIG["alpha_passed"] * avg_passed - REWARD_CONFIG["beta_queue"] * avg_queue)
+
+    final_reason = "ok"
+    if sim_metrics.get("non_green_phase"):
+        final_reason = "signal_step_target_phase_not_green"
+    elif sim_metrics.get("duration_zero"):
+        final_reason = "signal_step_duration_zero"
+
+    return aggregate_reward(
+        valid=True,
+        sim_reward=sim_reward,
+        invalid_reward=invalid,
+        reward_components={
+            "task": "signal_step",
+            "sim_avg_passed": avg_passed,
+            "sim_avg_queue": avg_queue,
+            "sim_reward": sim_reward,
+        },
+        error_tags=[] if final_reason == "ok" else [final_reason],
+        reason=final_reason,
+    )
+
+
+def score_extend_decision(
+    simulator: "SUMOSimulator",
+    tl_id: str,
+    action: Dict[str, Any],
+    *,
+    phase_limits: Union[Dict[str, Any], None],
+    wait_time_for_phase_change: int,
+    current_elapsed_sec: Union[int, None],
+    tls_phase_durations: Union[List[Any], None],
+) -> Dict[str, Any]:
+    """
+    Score an extend_decision action by validating bounds and simulating the phase window.
+    """
+    invalid = float(REWARD_CONFIG["invalid_output_reward"])
+
+    import traci
+
+    _apply_tls_phase_durations(tl_id, tls_phase_durations or [])
+
+    # Identify current phase + elapsed (prefer dataset-provided elapsed)
+    current_phase_idx = traci.trafficlight.getPhase(tl_id)
+    current_phase_id = int(current_phase_idx) + 1
+
+    if current_elapsed_sec is None:
+        planned_green = int(round(traci.trafficlight.getPhaseDuration(tl_id)))
+        remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
+        current_elapsed_sec = int(max(0, round(planned_green - remaining)))
+    else:
+        current_elapsed_sec = int(current_elapsed_sec)
+
+    ok, reason, action = validate_action(
+        "extend_decision",
+        action,
+        phase_limits=phase_limits,
+        current_phase_id=current_phase_id,
+        current_elapsed_sec=current_elapsed_sec,
+        wait_time_for_phase_change=wait_time_for_phase_change,
+    )
+    if not ok:
+        return aggregate_reward(
+            valid=False,
+            sim_reward=0.0,
+            invalid_reward=invalid,
+            reward_components={"task": "extend_decision", "current_phase_id": current_phase_id},
+            error_tags=[reason],
+            reason=reason,
+        )
+
+    extend = str(action["extend"])
+    extend_sec = int(action["extend_sec"])
+    duration = extend_sec + int(wait_time_for_phase_change) if extend == "是" else int(wait_time_for_phase_change)
+    sim_metrics = _simulate_phase_window(simulator, tl_id, current_phase_id, duration)
+
+    avg_passed = float(sim_metrics["avg_passed_veh"])
+    avg_queue = float(sim_metrics["avg_queue_veh"])
+    sim_reward = float(REWARD_CONFIG["alpha_passed"] * avg_passed - REWARD_CONFIG["beta_queue"] * avg_queue)
+
+    final_reason = "ok"
+    if sim_metrics.get("non_green_phase"):
+        final_reason = "extend_decision_target_phase_not_green"
+    elif sim_metrics.get("duration_zero"):
+        final_reason = "extend_decision_duration_zero"
+
+    return aggregate_reward(
+        valid=True,
+        sim_reward=sim_reward,
+        invalid_reward=invalid,
+        reward_components={
+            "task": "extend_decision",
+            "current_phase_id": current_phase_id,
+            "current_elapsed_sec": int(current_elapsed_sec),
+            "duration": int(duration),
+            "sim_avg_passed": avg_passed,
+            "sim_avg_queue": avg_queue,
+            "sim_reward": sim_reward,
+        },
+        error_tags=[] if final_reason == "ok" else [final_reason],
+        reason=final_reason,
+    )
+
+
 def _extract_phase_limits_from_prompt(prompt_messages: List[dict]) -> Union[Dict[str, Any], None]:
     """
     从 prompt 文本中提取 phase_limits（用于 extend_decision 任务）。
@@ -453,6 +736,40 @@ def _extract_wait_time_from_prompt(prompt_messages: List[dict]) -> Union[int, No
         return state.get('wait_time_for_phase_change')
     except Exception:
         return None
+
+
+def _extract_current_phase_id_from_prompt(prompt_messages: List[dict]) -> Union[int, None]:
+    """
+    从 prompt 文本中提取 current_phase_id（用于 extend_decision / signal_step 的无仿真校验兜底）。
+    """
+    if not prompt_messages:
+        return None
+
+    user_content = None
+    for msg in prompt_messages:
+        if msg.get("role") == "user":
+            user_content = msg.get("content", "")
+            break
+
+    if not user_content:
+        return None
+
+    # extend_decision_input_json / signal_step_input_json 都包含 state.current_phase_id
+    for tag in ("extend_decision_input_json", "signal_step_input_json"):
+        match = re.search(rf"【{tag}】(.*?)【/{tag}】", user_content, re.DOTALL)
+        if not match:
+            continue
+        try:
+            data = json.loads(match.group(1))
+            state = data.get("state", {}) or {}
+            v = state.get("current_phase_id", None)
+            if v is None:
+                continue
+            return int(v)
+        except Exception:
+            continue
+
+    return None
 
 
 def _apply_tls_phase_durations(tl_id: str, durations: List[int]):
@@ -576,6 +893,303 @@ def _simulate_phase_window(
     }
 
 
+# ==================== Multi-Reward Functions (GRPOTrainer reward_funcs=[...]) ====================
+def tsc_reward_format_fn(
+    prompts: Union[List[str], List[List[dict]]],
+    completions: Union[List[str], List[List[dict]]],
+    completion_ids: List[List[int]],
+    **kwargs,
+) -> List[float]:
+    """
+    Format/constraint reward: penalize invalid outputs (parse/bounds), otherwise 0.
+
+    This function also drives reward_diag invalid-rate accounting (so you still get the same
+    [reward_diag] invalid_rate / top reasons output).
+    """
+    valid_reward = float(REWARD_CONFIG.get("format_reward_valid", 0.5))
+    invalid_reward = float(REWARD_CONFIG.get("format_reward_invalid", -0.5))
+
+    task_types = kwargs.get("task_type", [])
+    phase_ids_list = kwargs.get("phase_ids", [])
+    phase_limits_list = kwargs.get("phase_limits", [])
+    wait_times = kwargs.get("wait_time_for_phase_change", [])
+    elapsed_list = kwargs.get("current_phase_elapsed_sec", [])
+
+    completion_texts: List[str] = []
+    for c in completions:
+        if isinstance(c, list) and len(c) > 0 and isinstance(c[-1], dict):
+            completion_texts.append(c[-1].get("content", ""))
+        else:
+            completion_texts.append(str(c))
+
+    num_generations = len(completion_texts) // len(task_types) if task_types else 1
+
+    trainer_state = kwargs.get("trainer_state", None)
+    global_step = getattr(trainer_state, "global_step", None)
+    if _REWARD_DIAG.get("window_start_step") is None and global_step is not None:
+        _REWARD_DIAG["window_start_step"] = int(global_step)
+
+    rewards: List[float] = []
+    reasons: List[str] = []
+
+    for i, completion_text in enumerate(completion_texts):
+        sample_idx = i // max(1, num_generations)
+        task_type = task_types[sample_idx] if task_types else None
+
+        action, reason = parse_output(completion_text, str(task_type), debug=False)
+        if not action:
+            rewards.append(invalid_reward)
+            reasons.append(reason)
+            continue
+
+        phase_ids = phase_ids_list[sample_idx] if phase_ids_list else None
+        phase_limits = phase_limits_list[sample_idx] if phase_limits_list else None
+        wait_time = int(wait_times[sample_idx]) if wait_times and sample_idx < len(wait_times) else 0
+        elapsed = int(elapsed_list[sample_idx]) if elapsed_list and sample_idx < len(elapsed_list) else None
+
+        current_phase_id = None
+        if str(task_type) == "extend_decision":
+            prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
+            if isinstance(prompt_messages, list):
+                current_phase_id = _extract_current_phase_id_from_prompt(prompt_messages)
+
+        ok, v_reason, _action2 = validate_action(
+            str(task_type),
+            action,
+            phase_ids=phase_ids,
+            phase_limits=phase_limits,
+            current_phase_id=current_phase_id,
+            current_elapsed_sec=elapsed,
+            wait_time_for_phase_change=wait_time,
+        )
+        if not ok:
+            rewards.append(invalid_reward)
+            reasons.append(v_reason)
+            continue
+
+        rewards.append(valid_reward)
+        reasons.append("ok")
+
+    # Diagnostics aggregation (treat invalid when this format reward hits invalid penalty)
+    try:
+        _REWARD_DIAG["window_total"] += len(rewards)
+        for i, (r, reason) in enumerate(zip(rewards, reasons)):
+            sample_idx = i // max(1, num_generations)
+            task_type = task_types[sample_idx] if task_types else "unknown"
+            _REWARD_DIAG["window_total_by_task"][task_type] += 1
+            if float(r) == invalid_reward:
+                _REWARD_DIAG["window_invalid"] += 1
+                _REWARD_DIAG["window_invalid_by_task"][task_type] += 1
+            _REWARD_DIAG.setdefault("window_reason_by_task", {}).setdefault(task_type, Counter())[reason] += 1
+    except Exception:
+        pass
+
+    return rewards
+
+
+def _simulate_valid_action_worker(args: tuple) -> tuple[float, str]:
+    """
+    Parallel worker: assumes parse/format validation already passed. Returns (sim_reward, reason).
+    """
+    (
+        task_type,
+        action,
+        state_path,
+        scenario,
+        tl_id,
+        sumocfg,
+        phase_ids,
+        decision_lead_sec,
+        decision_remaining_sec,
+        wait_time,
+        phase_limits,
+        current_elapsed_sec,
+        tls_phase_durations,
+    ) = args
+
+    try:
+        simulator = SUMOSimulator(
+            config_file=sumocfg,
+            junctions_file=None,
+            gui=False,
+            additional_options=["--device.rerouting.probability", "0"],
+            verbose=False,
+        )
+        if not simulator.start_simulation():
+            return 0.0, "start_simulation_failed"
+        if not os.path.exists(state_path):
+            simulator.close()
+            return 0.0, "state_path_missing"
+        simulator.restore_simulation_state(state_path)
+
+        if task_type == "signal_step":
+            out = score_signal_step(
+                simulator,
+                tl_id,
+                action,
+                phase_ids=phase_ids,
+                decision_lead_sec=int(decision_lead_sec),
+                decision_remaining_sec=decision_remaining_sec,
+                tls_phase_durations=tls_phase_durations,
+            )
+            simulator.close()
+            return float(out["reward"]), str(out["reason"])
+
+        if task_type == "extend_decision":
+            out = score_extend_decision(
+                simulator,
+                tl_id,
+                action,
+                phase_limits=phase_limits,
+                wait_time_for_phase_change=int(wait_time or 0),
+                current_elapsed_sec=current_elapsed_sec,
+                tls_phase_durations=tls_phase_durations,
+            )
+            simulator.close()
+            return float(out["reward"]), str(out["reason"])
+
+        simulator.close()
+        return 0.0, "unsupported_task_type"
+    except Exception as e:
+        try:
+            simulator.close()
+        except Exception:
+            pass
+        return 0.0, f"exception:{type(e).__name__}"
+
+
+def tsc_reward_sim_fn(
+    prompts: Union[List[str], List[List[dict]]],
+    completions: Union[List[str], List[List[dict]]],
+    completion_ids: List[List[int]],
+    **kwargs,
+) -> List[float]:
+    """
+    Simulation reward: run SUMO roll-forward for valid actions, otherwise 0.
+    """
+    state_paths = kwargs.get("state_path", [])
+    scenarios = kwargs.get("scenario", [])
+    tl_ids = kwargs.get("tl_id", [])
+    task_types = kwargs.get("task_type", [])
+    phase_ids_list = kwargs.get("phase_ids", [])
+    phase_limits_list = kwargs.get("phase_limits", [])
+    decision_lead_secs = kwargs.get("decision_lead_sec", [])
+    decision_remaining_secs = kwargs.get("decision_remaining_sec", [])
+    wait_times = kwargs.get("wait_time_for_phase_change", [])
+    elapsed_list = kwargs.get("current_phase_elapsed_sec", [])
+    tls_durs_list = kwargs.get("tls_phase_durations", [])
+    sumocfg_paths = kwargs.get("sumocfg_path", [])
+
+    if not state_paths:
+        raise ValueError("tsc_reward_sim_fn 需要 state_path 字段")
+
+    completion_texts: List[str] = []
+    for c in completions:
+        if isinstance(c, list) and len(c) > 0 and isinstance(c[-1], dict):
+            completion_texts.append(c[-1].get("content", ""))
+        else:
+            completion_texts.append(str(c))
+
+    num_generations = len(completion_texts) // len(state_paths) if len(state_paths) > 0 else 1
+    sim_rewards = [0.0] * len(completion_texts)
+
+    tasks = []
+    task_indices = []
+
+    for i, completion_text in enumerate(completion_texts):
+        sample_idx = i // max(1, num_generations)
+        task_type = task_types[sample_idx] if task_types else None
+
+        action, _reason = parse_output(completion_text, str(task_type), debug=False)
+        if not action:
+            continue
+
+        phase_ids = phase_ids_list[sample_idx] if phase_ids_list else None
+        phase_limits = phase_limits_list[sample_idx] if phase_limits_list else None
+        wait_time = int(wait_times[sample_idx]) if wait_times and sample_idx < len(wait_times) else 0
+        elapsed = int(elapsed_list[sample_idx]) if elapsed_list and sample_idx < len(elapsed_list) else None
+        tls_durs = tls_durs_list[sample_idx] if tls_durs_list and sample_idx < len(tls_durs_list) else []
+
+        current_phase_id = None
+        if str(task_type) == "extend_decision":
+            prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
+            if isinstance(prompt_messages, list):
+                current_phase_id = _extract_current_phase_id_from_prompt(prompt_messages)
+
+        ok, _v_reason, action = validate_action(
+            str(task_type),
+            action,
+            phase_ids=phase_ids,
+            phase_limits=phase_limits,
+            current_phase_id=current_phase_id,
+            current_elapsed_sec=elapsed,
+            wait_time_for_phase_change=wait_time,
+        )
+        if not ok:
+            continue
+
+        # Resolve sumocfg
+        if sumocfg_paths and sample_idx < len(sumocfg_paths):
+            sumocfg = sumocfg_paths[sample_idx]
+        else:
+            scenario_dir = os.path.join("sumo_simulation/environments", scenarios[sample_idx])
+            sumocfg = None
+            for f in os.listdir(scenario_dir):
+                if f.endswith(".sumocfg"):
+                    sumocfg = os.path.join(scenario_dir, f)
+                    break
+        if not sumocfg:
+            continue
+
+        tasks.append(
+            (
+                str(task_type),
+                action,
+                state_paths[sample_idx],
+                scenarios[sample_idx],
+                tl_ids[sample_idx],
+                sumocfg,
+                phase_ids,
+                decision_lead_secs[sample_idx] if decision_lead_secs else 10,
+                decision_remaining_secs[sample_idx] if decision_remaining_secs and sample_idx < len(decision_remaining_secs) else None,
+                wait_time,
+                phase_limits,
+                elapsed,
+                tls_durs,
+            )
+        )
+        task_indices.append(i)
+
+    if not tasks:
+        return sim_rewards
+
+    if REWARD_CONFIG.get("parallel_workers", 0) > 0 and len(tasks) > 1:
+        pool = _ensure_mp_pool_initialized()
+        if pool is None:
+            results = list(map(_simulate_valid_action_worker, tasks))
+        else:
+            try:
+                results = pool.map(_simulate_valid_action_worker, tasks, chunksize=1)
+            except Exception:
+                results = list(map(_simulate_valid_action_worker, tasks))
+    else:
+        results = list(map(_simulate_valid_action_worker, tasks))
+
+    for idx, (r, _reason) in zip(task_indices, results):
+        clip_min = float(REWARD_CONFIG.get("sim_reward_clip_min", -1.0))
+        clip_max = float(REWARD_CONFIG.get("sim_reward_clip_max", 1.0))
+        rr = float(r)
+        if rr != rr:  # NaN guard
+            rr = 0.0
+        if rr < clip_min:
+            rr = clip_min
+        elif rr > clip_max:
+            rr = clip_max
+        sim_rewards[idx] = rr
+
+    return sim_rewards
+
+
 # ==================== 并行 Worker 函数 ====================
 def _evaluate_single_completion(args: tuple) -> float:
     """
@@ -591,7 +1205,8 @@ def _evaluate_single_completion(args: tuple) -> float:
      task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
      wait_time, phase_order, phase_limits, current_elapsed,
      tls_phase_durations) = args
-    
+
+    invalid = float(REWARD_CONFIG["invalid_output_reward"])
     try:
         # 创建独立的simulator实例
         simulator = SUMOSimulator(
@@ -603,132 +1218,54 @@ def _evaluate_single_completion(args: tuple) -> float:
         )
         
         if not simulator.start_simulation():
-            return float(REWARD_CONFIG['invalid_output_reward'])
+            return invalid
         
         # 恢复SUMO state
         if not os.path.exists(state_path):
             simulator.close()
-            return float(REWARD_CONFIG['invalid_output_reward'])
+            return invalid
         
         simulator.restore_simulation_state(state_path)
         
         # 根据task_type计算reward
-        import traci
-        
         if task_type == "signal_step":
-            parsed = _parse_signal_step_output(completion_text, debug=True)
-            if not parsed:
-                print(f"[DEBUG] signal_step 解析失败，原始输出: {completion_text[:300]}")
+            action, _reason = parse_output(completion_text, "signal_step", debug=True)
+            if not action:
                 simulator.close()
-                return float(REWARD_CONFIG['invalid_output_reward'])
-            
-            next_phase_id = parsed["next_phase_id"]
-            green_sec = parsed["green_sec"]
-            
-            if phase_ids and next_phase_id not in phase_ids:
-                print(f"[DEBUG] next_phase_id={next_phase_id} 不在 phase_ids={phase_ids}")
-                simulator.close()
-                return float(REWARD_CONFIG['invalid_output_reward'])
-            
-            # 检查 green_sec 范围
-            min_green = REWARD_CONFIG['green_sec_min']
-            max_green = REWARD_CONFIG['green_sec_max']
-            if not (min_green <= green_sec <= max_green):
-                print(f"[DEBUG] green_sec={green_sec} 超出范围 [{min_green}, {max_green}]")
-                simulator.close()
-                return float(REWARD_CONFIG['invalid_output_reward'])
-            
-            # 应用 tls_phase_durations
-            _apply_tls_phase_durations(tl_id, tls_phase_durations)
-            
-            # 使用 decision_remaining_sec 推进
-            decision_rem = decision_remaining_sec if decision_remaining_sec is not None else int(decision_lead_sec)
-            for _ in range(int(max(0, decision_rem))):
-                traci.simulationStep()
-            
-            # 模拟phase window
-            sim_metrics = _simulate_phase_window(simulator, tl_id, next_phase_id, green_sec)
-            
-            avg_passed = sim_metrics["avg_passed_veh"]
-            avg_queue = sim_metrics["avg_queue_veh"]
-            reward = (
-                REWARD_CONFIG["alpha_passed"] * avg_passed
-                - REWARD_CONFIG["beta_queue"] * avg_queue
+                return invalid
+            result = score_signal_step(
+                simulator,
+                tl_id,
+                action,
+                phase_ids=phase_ids,
+                decision_lead_sec=int(decision_lead_sec),
+                decision_remaining_sec=decision_remaining_sec,
+                tls_phase_durations=tls_phase_durations,
             )
-            
             simulator.close()
-            return float(reward)
+            return float(result["reward"])
         
         elif task_type == "extend_decision":
-            parsed = _parse_extend_decision_output(completion_text, debug=True)
-            if not parsed:
-                print(f"[DEBUG] extend_decision 解析失败，原始输出: {completion_text[:300]}")
+            action, _reason = parse_output(completion_text, "extend_decision", debug=True)
+            if not action:
                 simulator.close()
-                return float(REWARD_CONFIG['invalid_output_reward'])
-            
-            extend = parsed["extend"]
-            extend_sec = int(parsed["extend_sec"])
-            
-            # 应用 tls_phase_durations
-            _apply_tls_phase_durations(tl_id, tls_phase_durations)
-            
-            # 使用传入的 current_elapsed（更稳定）
-            if current_elapsed is None:
-                # 兜底
-                current_phase_idx = traci.trafficlight.getPhase(tl_id)
-                planned_green = int(round(traci.trafficlight.getPhaseDuration(tl_id)))
-                remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
-                current_elapsed = int(max(0, round(planned_green - remaining)))
-            else:
-                current_elapsed = int(current_elapsed)
-            
-            current_phase_idx = traci.trafficlight.getPhase(tl_id)
-            current_phase_id = current_phase_idx + 1
-            
-            if not phase_limits:
-                simulator.close()
-                return float(REWARD_CONFIG['invalid_output_reward'])
-            
-            limits = phase_limits.get(str(current_phase_id), None) if isinstance(phase_limits, dict) else None
-            if not limits:
-                simulator.close()
-                return float(REWARD_CONFIG['invalid_output_reward'])
-            
-            min_green = int(limits["min_green"])
-            max_green = int(limits["max_green"])
-            
-            if current_elapsed + int(wait_time) >= max_green:
-                if extend_sec != 0:
-                    simulator.close()
-                    return float(REWARD_CONFIG['invalid_output_reward'])
-                extend = "否"
-            
-            if extend == "否" and extend_sec != 0:
-                simulator.close()
-                return float(REWARD_CONFIG['invalid_output_reward'])
-            
-            final_green = current_elapsed + extend_sec
-            if not (min_green <= final_green + int(wait_time) <= max_green):
-                simulator.close()
-                return float(REWARD_CONFIG['invalid_output_reward'])
-            
-            duration = extend_sec + int(wait_time) if extend == "是" else int(wait_time)
-            sim_metrics = _simulate_phase_window(simulator, tl_id, current_phase_id, duration)
-            
-            avg_passed = sim_metrics["avg_passed_veh"]
-            avg_queue = sim_metrics["avg_queue_veh"]
-            reward = (
-                REWARD_CONFIG["alpha_passed"] * avg_passed
-                - REWARD_CONFIG["beta_queue"] * avg_queue
+                return invalid
+            result = score_extend_decision(
+                simulator,
+                tl_id,
+                action,
+                phase_limits=phase_limits,
+                wait_time_for_phase_change=int(wait_time or 0),
+                current_elapsed_sec=current_elapsed,
+                tls_phase_durations=tls_phase_durations,
             )
-            
             simulator.close()
-            return float(reward)
+            return float(result["reward"])
         
         else:
             # 旧任务类型（cycle_predict等）
             simulator.close()
-            return float(REWARD_CONFIG['invalid_output_reward'])
+            return invalid
     
     except Exception as e:
         print(f"评估失败 [{scenario}/{tl_id}]: {e}")
@@ -736,7 +1273,7 @@ def _evaluate_single_completion(args: tuple) -> float:
             simulator.close()
         except:
             pass
-        return float(REWARD_CONFIG['invalid_output_reward'])
+        return invalid
 
 
 # Diagnostics-friendly worker: returns (reward, reason_code)
@@ -764,106 +1301,39 @@ def _evaluate_single_completion_diag(args: tuple) -> tuple[float, str]:
 
         simulator.restore_simulation_state(state_path)
 
-        import traci
-
         if task_type == "signal_step":
-            parsed = _parse_signal_step_output(completion_text, debug=True)
-            if not parsed:
+            action, reason = parse_output(completion_text, "signal_step", debug=True)
+            if not action:
                 simulator.close()
-                return invalid, "signal_step_parse_failed"
-
-            next_phase_id = parsed["next_phase_id"]
-            green_sec = parsed["green_sec"]
-
-            if phase_ids and next_phase_id not in phase_ids:
-                simulator.close()
-                return invalid, "signal_step_phase_id_invalid"
-
-            min_green = REWARD_CONFIG["green_sec_min"]
-            max_green = REWARD_CONFIG["green_sec_max"]
-            if not (min_green <= green_sec <= max_green):
-                simulator.close()
-                return invalid, "signal_step_green_out_of_range"
-
-            _apply_tls_phase_durations(tl_id, tls_phase_durations)
-
-            decision_rem = decision_remaining_sec if decision_remaining_sec is not None else int(decision_lead_sec)
-            for _ in range(int(max(0, decision_rem))):
-                traci.simulationStep()
-
-            sim_metrics = _simulate_phase_window(simulator, tl_id, next_phase_id, green_sec)
-            avg_passed = sim_metrics["avg_passed_veh"]
-            avg_queue = sim_metrics["avg_queue_veh"]
-            reward = REWARD_CONFIG["alpha_passed"] * avg_passed - REWARD_CONFIG["beta_queue"] * avg_queue
+                return invalid, reason
+            result = score_signal_step(
+                simulator,
+                tl_id,
+                action,
+                phase_ids=phase_ids,
+                decision_lead_sec=int(decision_lead_sec),
+                decision_remaining_sec=decision_remaining_sec,
+                tls_phase_durations=tls_phase_durations,
+            )
             simulator.close()
-
-            if sim_metrics.get("non_green_phase"):
-                return float(reward), "signal_step_target_phase_not_green"
-            if sim_metrics.get("duration_zero"):
-                return float(reward), "signal_step_duration_zero"
-            return float(reward), "ok"
+            return float(result["reward"]), str(result["reason"])
 
         if task_type == "extend_decision":
-            parsed = _parse_extend_decision_output(completion_text, debug=True)
-            if not parsed:
+            action, reason = parse_output(completion_text, "extend_decision", debug=True)
+            if not action:
                 simulator.close()
-                return invalid, "extend_decision_parse_failed"
-
-            extend = parsed["extend"]
-            extend_sec = int(parsed["extend_sec"])
-
-            _apply_tls_phase_durations(tl_id, tls_phase_durations)
-
-            if current_elapsed is None:
-                current_phase_idx = traci.trafficlight.getPhase(tl_id)
-                planned_green = int(round(traci.trafficlight.getPhaseDuration(tl_id)))
-                remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
-                current_elapsed = int(max(0, round(planned_green - remaining)))
-            else:
-                current_elapsed = int(current_elapsed)
-
-            current_phase_idx = traci.trafficlight.getPhase(tl_id)
-            current_phase_id = current_phase_idx + 1
-
-            if not phase_limits:
-                simulator.close()
-                return invalid, "extend_decision_phase_limits_missing"
-
-            limits = phase_limits.get(str(current_phase_id), None) if isinstance(phase_limits, dict) else None
-            if not limits:
-                simulator.close()
-                return invalid, "extend_decision_limits_missing_for_phase"
-
-            min_green = int(limits["min_green"])
-            max_green = int(limits["max_green"])
-
-            if current_elapsed + int(wait_time) >= max_green:
-                if extend_sec != 0:
-                    simulator.close()
-                    return invalid, "extend_decision_extend_when_at_max_green"
-                extend = "否"
-
-            if extend == "否" and extend_sec != 0:
-                simulator.close()
-                return invalid, "extend_decision_extend_sec_nonzero_when_no"
-
-            final_green = current_elapsed + extend_sec
-            if not (min_green <= final_green + int(wait_time) <= max_green):
-                simulator.close()
-                return invalid, "extend_decision_final_green_out_of_bounds"
-
-            duration = extend_sec + int(wait_time) if extend == "是" else int(wait_time)
-            sim_metrics = _simulate_phase_window(simulator, tl_id, current_phase_id, duration)
-            avg_passed = sim_metrics["avg_passed_veh"]
-            avg_queue = sim_metrics["avg_queue_veh"]
-            reward = REWARD_CONFIG["alpha_passed"] * avg_passed - REWARD_CONFIG["beta_queue"] * avg_queue
+                return invalid, reason
+            result = score_extend_decision(
+                simulator,
+                tl_id,
+                action,
+                phase_limits=phase_limits,
+                wait_time_for_phase_change=int(wait_time or 0),
+                current_elapsed_sec=current_elapsed,
+                tls_phase_durations=tls_phase_durations,
+            )
             simulator.close()
-
-            if sim_metrics.get("non_green_phase"):
-                return float(reward), "extend_decision_target_phase_not_green"
-            if sim_metrics.get("duration_zero"):
-                return float(reward), "extend_decision_duration_zero"
-            return float(reward), "ok"
+            return float(result["reward"]), str(result["reason"])
 
         simulator.close()
         return invalid, "unsupported_task_type"
@@ -1202,160 +1672,69 @@ def tsc_reward_fn(
             simulator.restore_simulation_state(state_path)
 
             if task_type in ("signal_step", "extend_decision"):
-                import traci
-
                 if task_type == "signal_step":
-                    parsed = _parse_signal_step_output(completion_text, debug=True)
-                    if not parsed:
-                        print(f"[DEBUG 顺序] signal_step 解析失败，原始输出: {completion_text[:300]}")
-                        rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
-                        reasons.append("signal_step_parse_failed")
+                    action, reason = parse_output(completion_text, "signal_step", debug=True)
+                    if not action:
+                        rewards.append(float(REWARD_CONFIG["invalid_output_reward"]))
+                        reasons.append(reason)
                         continue
-                    next_phase_id = parsed["next_phase_id"]
-                    green_sec = parsed["green_sec"]
-                    
-                    # 检查 phase_id 有效性
-                    if phase_ids and next_phase_id not in phase_ids:
-                        print(f"[DEBUG 顺序] next_phase_id={next_phase_id} 不在 phase_ids={phase_ids}")
-                        rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
-                        reasons.append("signal_step_phase_id_invalid")
-                        continue
-                    
-                    # 检查 green_sec 范围
-                    min_green = REWARD_CONFIG['green_sec_min']
-                    max_green = REWARD_CONFIG['green_sec_max']
-                    if not (min_green <= green_sec <= max_green):
-                        print(f"[DEBUG 顺序] green_sec={green_sec} 超出范围 [{min_green}, {max_green}]")
-                        rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
-                        reasons.append("signal_step_green_out_of_range")
-                        continue
-                    
-                    # 应用保存的 tls_phase_durations（复现随机配时）
-                    tls_phase_durations_list = kwargs.get('tls_phase_durations', [])
-                    if tls_phase_durations_list and sample_idx < len(tls_phase_durations_list):
-                        tls_durs = tls_phase_durations_list[sample_idx]
-                        _apply_tls_phase_durations(tl_id, tls_durs)
-                    
-                    # 使用 dataset 的 decision_remaining_sec 推进到相位切换点
-                    decision_remaining_secs = kwargs.get('decision_remaining_sec', [])
-                    decision_rem = decision_remaining_secs[sample_idx] if decision_remaining_secs and sample_idx < len(decision_remaining_secs) else int(decision_lead_sec)
-                    for _ in range(int(max(0, decision_rem))):
-                        traci.simulationStep()
 
-                    sim_metrics = _simulate_phase_window(
+                    tls_phase_durations_list = kwargs.get("tls_phase_durations", [])
+                    tls_durs = tls_phase_durations_list[sample_idx] if tls_phase_durations_list and sample_idx < len(tls_phase_durations_list) else []
+
+                    decision_remaining_secs = kwargs.get("decision_remaining_sec", [])
+                    decision_rem = (
+                        decision_remaining_secs[sample_idx]
+                        if decision_remaining_secs and sample_idx < len(decision_remaining_secs)
+                        else None
+                    )
+
+                    result = score_signal_step(
                         simulator,
                         tl_id,
-                        next_phase_id,
-                        green_sec,
+                        action,
+                        phase_ids=phase_ids,
+                        decision_lead_sec=int(decision_lead_sec),
+                        decision_remaining_sec=decision_rem,
+                        tls_phase_durations=tls_durs,
                     )
-
-                    avg_passed = sim_metrics["avg_passed_veh"]
-                    avg_queue = sim_metrics["avg_queue_veh"]
-                    reward = (
-                        REWARD_CONFIG["alpha_passed"] * avg_passed
-                        - REWARD_CONFIG["beta_queue"] * avg_queue
-                    )
-                    rewards.append(float(reward))
-                    if sim_metrics.get("non_green_phase"):
-                        reasons.append("signal_step_target_phase_not_green")
-                    elif sim_metrics.get("duration_zero"):
-                        reasons.append("signal_step_duration_zero")
-                    else:
-                        reasons.append("ok")
+                    rewards.append(float(result["reward"]))
+                    reasons.append(str(result["reason"]))
                     continue
 
                 if task_type == "extend_decision":
-                    parsed = _parse_extend_decision_output(completion_text, debug=True)
-                    if not parsed:
-                        print(f"[DEBUG 顺序] extend_decision 解析失败，原始输出: {completion_text[:300]}")
-                        rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
-                        reasons.append("extend_decision_parse_failed")
+                    action, reason = parse_output(completion_text, "extend_decision", debug=True)
+                    if not action:
+                        rewards.append(float(REWARD_CONFIG["invalid_output_reward"]))
+                        reasons.append(reason)
                         continue
-                    extend = parsed["extend"]
-                    extend_sec = int(parsed["extend_sec"])
-                    
-                    # 应用保存的 tls_phase_durations（复现随机配时）
-                    tls_phase_durations_list = kwargs.get('tls_phase_durations', [])
-                    if tls_phase_durations_list and sample_idx < len(tls_phase_durations_list):
-                        tls_durs = tls_phase_durations_list[sample_idx]
-                        _apply_tls_phase_durations(tl_id, tls_durs)
 
-                    # 使用 dataset 的 current_phase_elapsed_sec（更稳定）
-                    elapsed_list = kwargs.get('current_phase_elapsed_sec', [])
-                    if elapsed_list and sample_idx < len(elapsed_list):
-                        current_elapsed = int(elapsed_list[sample_idx])
-                    else:
-                        # 兜底：从traci推导（不推荐）
-                        current_phase_idx = traci.trafficlight.getPhase(tl_id)
-                        planned_green = int(round(traci.trafficlight.getPhaseDuration(tl_id)))
-                        remaining = traci.trafficlight.getNextSwitch(tl_id) - traci.simulation.getTime()
-                        current_elapsed = int(max(0, round(planned_green - remaining)))
-                    
-                    current_phase_idx = traci.trafficlight.getPhase(tl_id)
-                    current_phase_id = current_phase_idx + 1
+                    tls_phase_durations_list = kwargs.get("tls_phase_durations", [])
+                    tls_durs = tls_phase_durations_list[sample_idx] if tls_phase_durations_list and sample_idx < len(tls_phase_durations_list) else []
 
-                    # extend_decision 任务需要 phase_limits
-                    # 优先从 dataset 列获取，fallback 从 prompt 提取
+                    elapsed_list = kwargs.get("current_phase_elapsed_sec", [])
+                    elapsed = int(elapsed_list[sample_idx]) if elapsed_list and sample_idx < len(elapsed_list) else None
+
+                    # phase_limits: 优先 dataset 列；否则从 prompt 提取
                     phase_limits = None
                     if phase_limits_list and sample_idx < len(phase_limits_list) and phase_limits_list[sample_idx]:
                         phase_limits = phase_limits_list[sample_idx]
                     else:
-                        # Fallback: 从 prompt 中提取 phase_limits
                         prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
                         if isinstance(prompt_messages, list):
                             phase_limits = _extract_phase_limits_from_prompt(prompt_messages)
-                    
-                    if not phase_limits:
-                        rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
-                        reasons.append("extend_decision_phase_limits_missing")
-                        continue
-                    
-                    limits = phase_limits.get(str(current_phase_id), None) if isinstance(phase_limits, dict) else None
-                    if not limits:
-                        rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
-                        reasons.append("extend_decision_limits_missing_for_phase")
-                        continue
-                    min_green = int(limits["min_green"])
-                    max_green = int(limits["max_green"])
 
-                    if current_elapsed + int(wait_time) >= max_green:
-                        if extend_sec != 0:
-                            rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
-                            reasons.append("extend_decision_extend_when_at_max_green")
-                            continue
-                        extend = "否"
-
-                    if extend == "否" and extend_sec != 0:
-                        rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
-                        reasons.append("extend_decision_extend_sec_nonzero_when_no")
-                        continue
-
-                    final_green = current_elapsed + extend_sec
-                    if not (min_green <= final_green + int(wait_time) <= max_green):
-                        rewards.append(float(REWARD_CONFIG['invalid_output_reward']))
-                        reasons.append("extend_decision_final_green_out_of_bounds")
-                        continue
-
-                    duration = extend_sec + int(wait_time) if extend == "是" else int(wait_time)
-                    sim_metrics = _simulate_phase_window(
+                    result = score_extend_decision(
                         simulator,
                         tl_id,
-                        current_phase_id,
-                        duration,
+                        action,
+                        phase_limits=phase_limits,
+                        wait_time_for_phase_change=int(wait_time or 0),
+                        current_elapsed_sec=elapsed,
+                        tls_phase_durations=tls_durs,
                     )
-                    avg_passed = sim_metrics["avg_passed_veh"]
-                    avg_queue = sim_metrics["avg_queue_veh"]
-                    reward = (
-                        REWARD_CONFIG["alpha_passed"] * avg_passed
-                        - REWARD_CONFIG["beta_queue"] * avg_queue
-                    )
-                    rewards.append(float(reward))
-                    if sim_metrics.get("non_green_phase"):
-                        reasons.append("extend_decision_target_phase_not_green")
-                    elif sim_metrics.get("duration_zero"):
-                        reasons.append("extend_decision_duration_zero")
-                    else:
-                        reasons.append("ok")
+                    rewards.append(float(result["reward"]))
+                    reasons.append(str(result["reason"]))
                     continue
 
             # ===== 旧任务: cycle_predict =====
