@@ -61,7 +61,7 @@ CONFIG = {
     'decision_lead_sec': 10,
     'phase_duration_scale_range': (0.7, 1.3),
     'extend_min_green_range': (5, 20),
-    'extend_max_green_range': (25, 120),
+    'extend_max_green_range': (45, 120),
     'extend_wait_time_range': (5, 25),
 }
 

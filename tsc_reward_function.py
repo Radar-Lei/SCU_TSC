@@ -57,7 +57,8 @@ REWARD_CONFIG = {
     'format_reward_invalid': -0.5,
     'sim_reward_clip_min': -1.0,
     'sim_reward_clip_max': 1.0,
-    'parallel_workers': 16,  # reward时不使用SUMO并行（设为0禁用），并行代码保留供后续使用
+    'parallel_workers': 16,  # 并行 SUMO worker 数量（使用固定端口池避免冲突）
+    'parallel_port_base': 20000,  # 并行端口基址（worker_i 使用 base + i*100 范围内的端口）
     'green_sec_min': 1,     # signal_step 的 green_sec 下限
     'green_sec_max': 120,   # signal_step 的 green_sec 上限
 }
@@ -67,6 +68,10 @@ REWARD_CONFIG = {
 # 使用 spawn 模式避免 fork 的线程安全问题
 _MP_CONTEXT = mp.get_context("spawn")
 _GLOBAL_MP_POOL = None  # 延迟初始化
+
+# Worker 端口分配：每个 worker 获得一个固定端口
+# 使用进程本地存储来保存 worker 的分配端口
+_WORKER_PORT: Dict[str, int] = {}  # 进程本地变量（spawn 模式下每个 worker 独立）
 
 
 # ==================== Reward Diagnostics ====================
@@ -120,13 +125,34 @@ def reward_diag_last(global_step: int) -> Union[Dict[str, Any], None]:
         return None
 
 
+def _worker_initializer(worker_id: int, port_base: int):
+    """
+    Worker 初始化函数（在每个 worker 进程启动时调用）
+    为该 worker 分配一个固定端口
+    """
+    global _WORKER_PORT
+    assigned_port = port_base + worker_id * 100  # 每个 worker 分配 100 个端口的空间
+    _WORKER_PORT["port"] = assigned_port
+    # 静默初始化，不打印日志
+
+
+def _get_worker_port() -> int:
+    """获取当前 worker 的分配端口"""
+    return _WORKER_PORT.get("port", None)
+
+
 def _ensure_mp_pool_initialized():
     """确保全局进程池已初始化（延迟初始化，避免import时启动）"""
     global _GLOBAL_MP_POOL
     if _GLOBAL_MP_POOL is None:
         num_workers = REWARD_CONFIG['parallel_workers']
         if num_workers > 0:
-            print(f"[tsc_reward_function] 初始化 spawn 进程池，workers={num_workers}")
+            port_base = REWARD_CONFIG.get('parallel_port_base', 20000)
+            print(f"[tsc_reward_function] 初始化 spawn 进程池，workers={num_workers}，端口范围={port_base}-{port_base + num_workers * 100}")
+            
+            # 使用 initializer 为每个 worker 分配唯一端口
+            # 注意：Pool 的 initializer 不能传递 worker_id，需要使用其他方式
+            # 改用 imap_unordered + 任务内分配端口的方式
             _GLOBAL_MP_POOL = _MP_CONTEXT.Pool(processes=num_workers)
             # 注册 atexit 钩子确保程序退出时清理
             atexit.register(_cleanup_mp_pool)
@@ -993,22 +1019,43 @@ def tsc_reward_format_fn(
 def _simulate_valid_action_worker(args: tuple) -> tuple[float, str]:
     """
     Parallel worker: assumes parse/format validation already passed. Returns (sim_reward, reason).
+    args tuple now includes a `port` field at the end for fixed port assignment.
     """
-    (
-        task_type,
-        action,
-        state_path,
-        scenario,
-        tl_id,
-        sumocfg,
-        phase_ids,
-        decision_lead_sec,
-        decision_remaining_sec,
-        wait_time,
-        phase_limits,
-        current_elapsed_sec,
-        tls_phase_durations,
-    ) = args
+    # 解包参数，最后一个是 port（可选）
+    if len(args) == 14:
+        (
+            task_type,
+            action,
+            state_path,
+            scenario,
+            tl_id,
+            sumocfg,
+            phase_ids,
+            decision_lead_sec,
+            decision_remaining_sec,
+            wait_time,
+            phase_limits,
+            current_elapsed_sec,
+            tls_phase_durations,
+            port,
+        ) = args
+    else:
+        (
+            task_type,
+            action,
+            state_path,
+            scenario,
+            tl_id,
+            sumocfg,
+            phase_ids,
+            decision_lead_sec,
+            decision_remaining_sec,
+            wait_time,
+            phase_limits,
+            current_elapsed_sec,
+            tls_phase_durations,
+        ) = args
+        port = None
 
     try:
         simulator = SUMOSimulator(
@@ -1017,6 +1064,7 @@ def _simulate_valid_action_worker(args: tuple) -> tuple[float, str]:
             gui=False,
             additional_options=["--device.rerouting.probability", "0"],
             verbose=False,
+            port=port,  # 使用分配的固定端口
         )
         if not simulator.start_simulation():
             return 0.0, "start_simulation_failed"
@@ -1199,15 +1247,23 @@ def _evaluate_single_completion(args: tuple) -> float:
     并行worker函数：评估单个completion的reward
     
     Args:
-        args: (completion_text, state_path, scenario, tl_id, sumocfg, task_type, ...)
+        args: (completion_text, state_path, scenario, tl_id, sumocfg, task_type, ..., port)
     
     Returns:
         float: 该completion的reward
     """
-    (completion_text, state_path, scenario, tl_id, sumocfg,
-     task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
-     wait_time, phase_order, phase_limits, current_elapsed,
-     tls_phase_durations) = args
+    # 解包参数，最后一个是 port（可选）
+    if len(args) == 15:
+        (completion_text, state_path, scenario, tl_id, sumocfg,
+         task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
+         wait_time, phase_order, phase_limits, current_elapsed,
+         tls_phase_durations, port) = args
+    else:
+        (completion_text, state_path, scenario, tl_id, sumocfg,
+         task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
+         wait_time, phase_order, phase_limits, current_elapsed,
+         tls_phase_durations) = args
+        port = None
 
     invalid = float(REWARD_CONFIG["invalid_output_reward"])
     try:
@@ -1218,6 +1274,7 @@ def _evaluate_single_completion(args: tuple) -> float:
             gui=False,  # 并行worker强制关闭GUI
             additional_options=['--device.rerouting.probability', '0'],
             verbose=False,
+            port=port,  # 使用分配的固定端口
         )
         
         if not simulator.start_simulation():
@@ -1280,11 +1337,21 @@ def _evaluate_single_completion(args: tuple) -> float:
 
 
 # Diagnostics-friendly worker: returns (reward, reason_code)
+# args tuple now includes a `port` field at the end for fixed port assignment
 def _evaluate_single_completion_diag(args: tuple) -> tuple[float, str]:
-    (completion_text, state_path, scenario, tl_id, sumocfg,
-     task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
-     wait_time, phase_order, phase_limits, current_elapsed,
-     tls_phase_durations) = args
+    # 解包参数，最后一个是 port（可选）
+    if len(args) == 15:
+        (completion_text, state_path, scenario, tl_id, sumocfg,
+         task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
+         wait_time, phase_order, phase_limits, current_elapsed,
+         tls_phase_durations, port) = args
+    else:
+        # 兼容旧格式（无 port 参数）
+        (completion_text, state_path, scenario, tl_id, sumocfg,
+         task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
+         wait_time, phase_order, phase_limits, current_elapsed,
+         tls_phase_durations) = args
+        port = None
 
     invalid = float(REWARD_CONFIG["invalid_output_reward"])
     try:
@@ -1294,6 +1361,7 @@ def _evaluate_single_completion_diag(args: tuple) -> tuple[float, str]:
             gui=False,
             additional_options=['--device.rerouting.probability', '0'],
             verbose=False,
+            port=port,  # 使用分配的固定端口
         )
         if not simulator.start_simulation():
             return invalid, "start_simulation_failed"
@@ -1527,6 +1595,7 @@ def tsc_reward_fn(
                 task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
                 wait_time, phase_order, phase_limits, current_elapsed,
                 tls_phase_durations
+                # port 将在下面分配
             ))
         
         # 使用全局常驻 spawn 进程池并行计算
@@ -1540,11 +1609,20 @@ def tsc_reward_fn(
             valid_indices = []
             invalid_reward = float(REWARD_CONFIG['invalid_output_reward'])
             
+            # 获取端口池配置
+            port_base = REWARD_CONFIG.get('parallel_port_base', 20000)
+            num_workers = max(1, REWARD_CONFIG.get('parallel_workers', 8))
+            
             for i, task in enumerate(tasks):
                 if task is None:
                     pass  # 稍后填充
                 else:
-                    valid_tasks.append(task)
+                    # 为每个任务分配一个唯一端口（基于任务索引循环分配）
+                    # 使用模运算确保端口在 worker 池范围内循环
+                    assigned_port = port_base + (i % num_workers) * 100
+                    # 将端口添加到任务 tuple 末尾
+                    task_with_port = task + (assigned_port,)
+                    valid_tasks.append(task_with_port)
                     valid_indices.append(i)
             
             # 使用 map 并行执行所有有效任务（返回 (reward, reason)）
