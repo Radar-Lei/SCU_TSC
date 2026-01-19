@@ -37,6 +37,7 @@ model = FastLanguageModel.get_peft_model(
     use_gradient_checkpointing="unsloth",
     random_state=3407,
 )
+model.config.use_cache = False
 
 # ==================== Load Dataset ====================
 if not os.path.isdir(dataset_path):
@@ -90,15 +91,17 @@ trainer = SFTTrainer(
     args=SFTConfig(
         output_dir=output_dir,
         num_train_epochs=3, # Increase epochs relying on early stopping
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=8,
-        gradient_accumulation_steps=2,
+        per_device_train_batch_size=2,
+        per_device_eval_batch_size=1,
+        gradient_accumulation_steps=4,
         learning_rate=2e-4, 
         fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
+        fp16_full_eval=not torch.cuda.is_bf16_supported(),
+        bf16_full_eval=torch.cuda.is_bf16_supported(),
         logging_steps=10,
         eval_strategy="steps",
-        eval_steps=30, # Evaluate every 10 steps
+        eval_steps=30, # Evaluate every 30 steps
         save_strategy="steps",
         save_steps=30,
         load_best_model_at_end=True,

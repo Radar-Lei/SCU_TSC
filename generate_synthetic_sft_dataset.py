@@ -60,6 +60,14 @@ def main():
     print(f"Loading dataset from {INPUT_PATH}...")
     dataset = load_from_disk(INPUT_PATH)
     
+    # Limit dataset to 2000 samples for SFT (doesn't need too much data)
+    MAX_SFT_SAMPLES = 2000
+    if len(dataset) > MAX_SFT_SAMPLES:
+        print(f"Dataset has {len(dataset)} samples, limiting to {MAX_SFT_SAMPLES} for SFT...")
+        random.seed(42)
+        indices = random.sample(range(len(dataset)), MAX_SFT_SAMPLES)
+        dataset = dataset.select(indices)
+    
     new_data = []
     
     print("Generating synthetic responses...")

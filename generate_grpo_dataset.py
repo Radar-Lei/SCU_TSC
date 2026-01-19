@@ -511,6 +511,16 @@ def generate_dataset_for_one_tl_two_scenarios(
 
     samples: List[dict] = []
     rng_base = random.Random(hash(scenario_name) ^ hash(tl_id))
+    
+    # Helper: check if all phases have 0 queue and 0 passed vehicles (empty traffic)
+    def _is_empty_traffic_sample(phase_metrics: List[Dict[str, Any]]) -> bool:
+        """
+        Returns True if all phases have avg_queue_veh == 0 and avg_passed_veh_in_current_green == 0.
+        """
+        for m in phase_metrics:
+            if m.get('avg_queue_veh', 0) > 0 or m.get('avg_passed_veh_in_current_green', 0) > 0:
+                return False
+        return True
 
     # 初始化相位跟踪
     track = _init_phase_tracking(simulator, tl_id)
@@ -574,6 +584,13 @@ def generate_dataset_for_one_tl_two_scenarios(
             {"role": "system", "content": "You are a traffic signal control expert. Output only valid JSON without any explanation."},
             {"role": "user", "content": full_prompt}
         ]
+
+        # Filter out 90% of "empty traffic" samples
+        if _is_empty_traffic_sample(phase_metrics_now):
+            if rng.random() > 0.1:  # Keep only 10%
+                for _ in range(5):
+                    _step_and_track(simulator, tl_id, track)
+                continue
 
         current_time = traci.simulation.getTime()
         state_filename = f"{tl_id}_signal_step_{step_idx}_t{int(current_time)}.xml"
@@ -683,6 +700,13 @@ def generate_dataset_for_one_tl_two_scenarios(
             {"role": "system", "content": "You are a traffic signal control expert. Output only valid JSON without any explanation."},
             {"role": "user", "content": full_prompt}
         ]
+
+        # Filter out 90% of "empty traffic" samples
+        if _is_empty_traffic_sample(phase_metrics_now):
+            if rng.random() > 0.1:  # Keep only 10%
+                for _ in range(5):
+                    _step_and_track(simulator, tl_id, track)
+                continue
 
         current_time = traci.simulation.getTime()
         state_filename = f"{tl_id}_extend_decision_{step_idx}_t{int(current_time)}.xml"
