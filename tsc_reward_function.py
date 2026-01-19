@@ -48,13 +48,13 @@ REWARD_CONFIG = {
     'w_proxy': 0.2,
     'w_sim': 1.5,
     'w_constraint': 1.5,
-    'D0': 25.0,  # 软约束归一化尺度
-    'alpha_passed': 1.0,
-    'beta_queue': 0.5,
+    # 'D0': 25.0,  # 软约束归一化尺度
+    'alpha_passed': 0.5,
+    'beta_queue': 1.0,
     'invalid_output_reward': -2.0,
     # Multi-reward mode (when using GRPOTrainer(reward_funcs=[sim, format]))
-    'format_reward_valid': 0.5,
-    'format_reward_invalid': -0.5,
+    'format_reward_valid': 0.0,
+    'format_reward_invalid': -0.3,
     'sim_reward_clip_min': -1.0,
     'sim_reward_clip_max': 1.0,
     'parallel_workers': 16,  # 并行 SUMO worker 数量（使用固定端口池避免冲突）
