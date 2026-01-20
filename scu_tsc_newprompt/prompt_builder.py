@@ -149,6 +149,7 @@ def build_extend_decision_input_json(
     current_phase_elapsed_sec: int,
     wait_time_for_phase_change: int,
     phase_metrics_now: List[Dict[str, Any]],
+    max_extend_sec: int = 8,
     as_of: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -179,6 +180,7 @@ def build_extend_decision_input_json(
             "wait_time_for_phase_change": int(wait_time_for_phase_change),
             "phase_metrics_by_id": phase_metrics_by_id,
         },
+        "max_extend_sec": int(max_extend_sec),
     }
     return payload
 
@@ -226,6 +228,7 @@ def wrap_extend_decision_prompt(payload: Dict[str, Any]) -> str:
 4. 若 state.current_phase_elapsed_sec + state.wait_time_for_phase_change 已经 ≥ phase_limits[current_phase_id].max_green，则必须输出不延长：extend="否", extend_sec=0。
 5. 若 state.current_phase_elapsed_sec + state.wait_time_for_phase_change < phase_limits[current_phase_id].min_green，则为了满足最小绿灯约束，你必须输出延长：extend="是"，且
    extend_sec ≥ phase_limits[current_phase_id].min_green - (state.current_phase_elapsed_sec + state.wait_time_for_phase_change)。
+6. 若 extend="是"，则 extend_sec ≤ max_extend_sec（单次延长不得超过该值）。
 
 输出要求（必须严格遵守）：
 

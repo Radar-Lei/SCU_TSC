@@ -21,6 +21,9 @@ import re
 import multiprocessing as mp
 from functools import partial
 import atexit
+import signal
+import subprocess
+import time
 
 # 添加项目路径
 sumo_sim_path = os.path.join(os.getcwd(), 'sumo_simulation')
@@ -59,6 +62,8 @@ REWARD_CONFIG = {
     'sim_reward_clip_max': 1.0,
     'parallel_workers': 16,  # 并行 SUMO worker 数量（使用固定端口池避免冲突）
     'parallel_port_base': 40000,  # 并行端口基址（worker_i 使用 base + i*100 范围内的端口）
+    'auto_cleanup_ports': True,  # 训练前自动清理占用端口的进程
+    'port_cleanup_mode': 'sumo_only',  # sumo_only | any
     'green_sec_min': 1,     # signal_step 的 green_sec 下限
     'green_sec_max': 120,   # signal_step 的 green_sec 上限
 }
@@ -131,13 +136,17 @@ def reward_diag_last(global_step: int) -> Union[Dict[str, Any], None]:
         return None
 
 
-def _worker_initializer(worker_id: int, port_base: int):
+def _worker_initializer(port_base: int):
     """
     Worker 初始化函数（在每个 worker 进程启动时调用）
     为该 worker 分配一个固定端口
     """
     global _WORKER_PORT
-    assigned_port = port_base + worker_id * 100  # 每个 worker 分配 100 个端口的空间
+    try:
+        ident = mp.current_process()._identity[0] - 1
+    except Exception:
+        ident = 0
+    assigned_port = port_base + int(ident) * 100  # 每个 worker 分配 100 个端口的空间
     _WORKER_PORT["port"] = assigned_port
     # 静默初始化，不打印日志
 
@@ -145,6 +154,113 @@ def _worker_initializer(worker_id: int, port_base: int):
 def _get_worker_port() -> int:
     """获取当前 worker 的分配端口"""
     return _WORKER_PORT.get("port", None)
+
+
+def _iter_ports_for_workers(port_base: int, num_workers: int) -> List[int]:
+    return [port_base + i * 100 for i in range(int(max(0, num_workers)))]
+
+
+def _pid_cmdline(pid: int) -> str:
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            raw = f.read()
+        if not raw:
+            return ""
+        return raw.decode(errors="ignore").replace("\x00", " ").strip()
+    except Exception:
+        return ""
+
+
+def _listening_pids_for_port(port: int) -> List[int]:
+    """
+    Return list of PIDs listening on a TCP port using lsof (if available).
+    """
+    try:
+        res = subprocess.run(
+            ["lsof", "-nP", f"-iTCP:{int(port)}", "-sTCP:LISTEN", "-t"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        res = None
+    if res is not None and res.returncode == 0 and res.stdout:
+        pids = []
+        for line in res.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                pids.append(int(line))
+            except ValueError:
+                continue
+        return pids
+
+    # Fallback to ss if lsof is unavailable
+    try:
+        res = subprocess.run(
+            ["ss", "-ltnp", f"sport = :{int(port)}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return []
+    if res.returncode != 0 or not res.stdout:
+        return []
+    pids = []
+    for line in res.stdout.splitlines():
+        if "pid=" not in line:
+            continue
+        for part in line.split("pid=")[1:]:
+            try:
+                pid_str = part.split(",", 1)[0]
+                pids.append(int(pid_str))
+            except Exception:
+                continue
+    return pids
+
+
+def _cleanup_listening_ports_if_needed():
+    """
+    Best-effort cleanup for SUMO ports to avoid "Address already in use".
+    """
+    if not REWARD_CONFIG.get("auto_cleanup_ports", False):
+        return
+    port_base = int(REWARD_CONFIG.get("parallel_port_base", 20000))
+    num_workers = int(REWARD_CONFIG.get("parallel_workers", 0))
+    if num_workers <= 0:
+        return
+
+    ports = _iter_ports_for_workers(port_base, num_workers)
+    mode = str(REWARD_CONFIG.get("port_cleanup_mode", "sumo_only")).lower()
+    killed = []
+
+    for port in ports:
+        pids = _listening_pids_for_port(port)
+        for pid in pids:
+            cmdline = _pid_cmdline(pid)
+            if mode == "sumo_only" and "sumo" not in cmdline.lower():
+                continue
+            try:
+                os.kill(pid, signal.SIGTERM)
+                killed.append(pid)
+            except Exception:
+                continue
+
+    if killed:
+        time.sleep(0.2)
+        # 强制清理仍存活的进程
+        for pid in killed:
+            try:
+                os.kill(pid, 0)
+            except Exception:
+                continue
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except Exception:
+                continue
+        print(f"[tsc_reward_function] 已清理占用端口的进程: {sorted(set(killed))}")
 
 
 def _ensure_mp_pool_initialized():
@@ -162,10 +278,14 @@ def _ensure_mp_pool_initialized():
         if num_workers > 0:
             port_base = REWARD_CONFIG.get('parallel_port_base', 20000)
             print(f"[tsc_reward_function] 初始化进程池，workers={num_workers}，端口范围={port_base}-{port_base + num_workers * 100}")
+            _cleanup_listening_ports_if_needed()
             
             try:
-                # 改用 imap_unordered + 任务内分配端口的方式
-                _GLOBAL_MP_POOL = _MP_CONTEXT.Pool(processes=num_workers)
+                _GLOBAL_MP_POOL = _MP_CONTEXT.Pool(
+                    processes=num_workers,
+                    initializer=_worker_initializer,
+                    initargs=(port_base,),
+                )
                 # 注册 atexit 钩子确保程序退出时清理
                 atexit.register(_cleanup_mp_pool)
                 print(f"[tsc_reward_function] 进程池初始化成功")
@@ -487,6 +607,7 @@ def validate_action(
     current_phase_id: Union[int, None] = None,
     current_elapsed_sec: Union[int, None] = None,
     wait_time_for_phase_change: Union[int, None] = None,
+    max_extend_sec: Union[int, None] = None,
 ) -> tuple[bool, str, Dict[str, Any]]:
     """
     Validate an action against task constraints. Returns (is_valid, reason, normalized_action).
@@ -540,6 +661,10 @@ def validate_action(
 
         if extend == "否" and extend_sec != 0:
             return False, "extend_decision_extend_sec_nonzero_when_no", action
+
+        # 若 extend="是"，extend_sec 不得超过 max_extend_sec
+        if max_extend_sec is not None and extend == "是" and extend_sec > max_extend_sec:
+            return False, "extend_decision_extend_sec_exceeds_max", action
 
         final_green = int(current_elapsed_sec) + extend_sec
         if not (min_green <= final_green + wait_time <= max_green):
@@ -652,6 +777,7 @@ def score_extend_decision(
     wait_time_for_phase_change: int,
     current_elapsed_sec: Union[int, None],
     tls_phase_durations: Union[List[Any], None],
+    max_extend_sec: Union[int, None] = None,
 ) -> Dict[str, Any]:
     """
     Score an extend_decision action by validating bounds and simulating the phase window.
@@ -680,6 +806,7 @@ def score_extend_decision(
         current_phase_id=current_phase_id,
         current_elapsed_sec=current_elapsed_sec,
         wait_time_for_phase_change=wait_time_for_phase_change,
+        max_extend_sec=max_extend_sec,
     )
     if not ok:
         return aggregate_reward(
@@ -779,6 +906,33 @@ def _extract_wait_time_from_prompt(prompt_messages: List[dict]) -> Union[int, No
         data = json.loads(match.group(1))
         state = data.get('state', {})
         return state.get('wait_time_for_phase_change')
+    except Exception:
+        return None
+
+
+def _extract_max_extend_sec_from_prompt(prompt_messages: List[dict]) -> Union[int, None]:
+    """
+    从 prompt 文本中提取 max_extend_sec（用于 extend_decision 任务）。
+    """
+    if not prompt_messages:
+        return None
+    
+    user_content = None
+    for msg in prompt_messages:
+        if msg.get('role') == 'user':
+            user_content = msg.get('content', '')
+            break
+    
+    if not user_content:
+        return None
+    
+    match = re.search(r'【extend_decision_input_json】(.*?)【/extend_decision_input_json】', user_content, re.DOTALL)
+    if not match:
+        return None
+    
+    try:
+        data = json.loads(match.group(1))
+        return data.get('max_extend_sec')
     except Exception:
         return None
 
@@ -1019,6 +1173,10 @@ def tsc_reward_format_fn(
                     extracted_wait = _extract_wait_time_from_prompt(prompt_messages)
                     if extracted_wait is not None:
                         wait_time = int(extracted_wait)
+                # 提取 max_extend_sec
+                max_extend_sec = _extract_max_extend_sec_from_prompt(prompt_messages)
+            else:
+                max_extend_sec = None
 
         ok, v_reason, _action2 = validate_action(
             str(task_type),
@@ -1028,6 +1186,7 @@ def tsc_reward_format_fn(
             current_phase_id=current_phase_id,
             current_elapsed_sec=elapsed,
             wait_time_for_phase_change=wait_time,
+            max_extend_sec=max_extend_sec if str(task_type) == "extend_decision" else None,
         )
         if not ok:
             rewards.append(invalid_reward)
@@ -1079,7 +1238,7 @@ def _simulate_valid_action_worker(args: tuple) -> tuple[float, str]:
     args tuple now includes a `port` field at the end for fixed port assignment.
     """
     # 解包参数，最后一个是 port（可选）
-    if len(args) == 14:
+    if len(args) == 15:
         (
             task_type,
             action,
@@ -1094,8 +1253,27 @@ def _simulate_valid_action_worker(args: tuple) -> tuple[float, str]:
             phase_limits,
             current_elapsed_sec,
             tls_phase_durations,
+            max_extend_sec,
             port,
         ) = args
+    elif len(args) == 14:
+        (
+            task_type,
+            action,
+            state_path,
+            scenario,
+            tl_id,
+            sumocfg,
+            phase_ids,
+            decision_lead_sec,
+            decision_remaining_sec,
+            wait_time,
+            phase_limits,
+            current_elapsed_sec,
+            tls_phase_durations,
+            max_extend_sec,
+        ) = args
+        port = None
     else:
         (
             task_type,
@@ -1112,9 +1290,12 @@ def _simulate_valid_action_worker(args: tuple) -> tuple[float, str]:
             current_elapsed_sec,
             tls_phase_durations,
         ) = args
+        max_extend_sec = None
         port = None
 
     try:
+        if port is None:
+            port = _get_worker_port()
         simulator = SUMOSimulator(
             config_file=sumocfg,
             junctions_file=None,
@@ -1152,6 +1333,7 @@ def _simulate_valid_action_worker(args: tuple) -> tuple[float, str]:
                 wait_time_for_phase_change=int(wait_time or 0),
                 current_elapsed_sec=current_elapsed_sec,
                 tls_phase_durations=tls_phase_durations,
+                max_extend_sec=max_extend_sec,
             )
             simulator.close()
             return float(out["reward"]), str(out["reason"])
@@ -1238,6 +1420,12 @@ def tsc_reward_sim_fn(
                     extracted_wait = _extract_wait_time_from_prompt(prompt_messages)
                     if extracted_wait is not None:
                         wait_time = int(extracted_wait)
+                # 提取 max_extend_sec
+                max_extend_sec = _extract_max_extend_sec_from_prompt(prompt_messages)
+            else:
+                max_extend_sec = None
+        else:
+            max_extend_sec = None
 
         ok, _v_reason, action = validate_action(
             str(task_type),
@@ -1279,6 +1467,7 @@ def tsc_reward_sim_fn(
                 phase_limits,
                 elapsed,
                 tls_durs,
+                max_extend_sec,
             )
         )
         task_indices.append(i)
@@ -1292,18 +1481,7 @@ def tsc_reward_sim_fn(
             results = list(map(_simulate_valid_action_worker, tasks))
         else:
             try:
-                # 为每个任务分配固定端口
-                port_base = REWARD_CONFIG.get('parallel_port_base', 20000)
-                num_workers = REWARD_CONFIG.get('parallel_workers', 16)
-                tasks_with_ports = []
-                for i, task in enumerate(tasks):
-                    # 为每个任务分配一个worker端口（循环使用）
-                    worker_id = i % num_workers
-                    port = port_base + worker_id * 100
-                    # 将port追加到任务元组末尾
-                    tasks_with_ports.append(task + (port,))
-                
-                results = pool.map(_simulate_valid_action_worker, tasks_with_ports, chunksize=1)
+                results = pool.map(_simulate_valid_action_worker, tasks, chunksize=1)
             except Exception as e:
                 print(f"[tsc_reward_sim_fn] 并行执行失败，回退到串行: {e}")
                 results = list(map(_simulate_valid_action_worker, tasks))
@@ -1337,16 +1515,23 @@ def _evaluate_single_completion(args: tuple) -> float:
         float: 该completion的reward
     """
     # 解包参数，最后一个是 port（可选）
-    if len(args) == 15:
+    if len(args) == 16:
         (completion_text, state_path, scenario, tl_id, sumocfg,
          task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
          wait_time, phase_order, phase_limits, current_elapsed,
-         tls_phase_durations, port) = args
+         tls_phase_durations, max_extend_sec, port) = args
+    elif len(args) == 15:
+        (completion_text, state_path, scenario, tl_id, sumocfg,
+         task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
+         wait_time, phase_order, phase_limits, current_elapsed,
+         tls_phase_durations, max_extend_sec) = args
+        port = None
     else:
         (completion_text, state_path, scenario, tl_id, sumocfg,
          task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
          wait_time, phase_order, phase_limits, current_elapsed,
          tls_phase_durations) = args
+        max_extend_sec = None
         port = None
 
     invalid = float(REWARD_CONFIG["invalid_output_reward"])
@@ -1402,6 +1587,7 @@ def _evaluate_single_completion(args: tuple) -> float:
                 wait_time_for_phase_change=int(wait_time or 0),
                 current_elapsed_sec=current_elapsed,
                 tls_phase_durations=tls_phase_durations,
+                max_extend_sec=max_extend_sec,
             )
             simulator.close()
             return float(result["reward"])
@@ -1424,21 +1610,30 @@ def _evaluate_single_completion(args: tuple) -> float:
 # args tuple now includes a `port` field at the end for fixed port assignment
 def _evaluate_single_completion_diag(args: tuple) -> tuple[float, str]:
     # 解包参数，最后一个是 port（可选）
-    if len(args) == 15:
+    if len(args) == 16:
         (completion_text, state_path, scenario, tl_id, sumocfg,
          task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
          wait_time, phase_order, phase_limits, current_elapsed,
-         tls_phase_durations, port) = args
+         tls_phase_durations, max_extend_sec, port) = args
+    elif len(args) == 15:
+        (completion_text, state_path, scenario, tl_id, sumocfg,
+         task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
+         wait_time, phase_order, phase_limits, current_elapsed,
+         tls_phase_durations, max_extend_sec) = args
+        port = None
     else:
-        # 兼容旧格式（无 port 参数）
+        # 兼容旧格式（无 max_extend_sec 和 port 参数）
         (completion_text, state_path, scenario, tl_id, sumocfg,
          task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
          wait_time, phase_order, phase_limits, current_elapsed,
          tls_phase_durations) = args
+        max_extend_sec = None
         port = None
 
     invalid = float(REWARD_CONFIG["invalid_output_reward"])
     try:
+        if port is None:
+            port = _get_worker_port()
         simulator = SUMOSimulator(
             config_file=sumocfg,
             junctions_file=None,
@@ -1486,6 +1681,7 @@ def _evaluate_single_completion_diag(args: tuple) -> tuple[float, str]:
                 wait_time_for_phase_change=int(wait_time or 0),
                 current_elapsed_sec=current_elapsed,
                 tls_phase_durations=tls_phase_durations,
+                max_extend_sec=max_extend_sec,
             )
             simulator.close()
             return float(result["reward"]), str(result["reason"])
@@ -1682,11 +1878,15 @@ def tsc_reward_fn(
                 if tls_durs_list and sample_idx < len(tls_durs_list):
                     tls_phase_durations = tls_durs_list[sample_idx]
             
+            # 提取 max_extend_sec
+            prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
+            max_extend_sec = _extract_max_extend_sec_from_prompt(prompt_messages) if isinstance(prompt_messages, list) else None
+            
             tasks.append((
                 completion_text, state_path, scenario, tl_id, sumocfg,
                 task_type, phase_ids, decision_lead_sec, decision_remaining_sec,
                 wait_time, phase_order, phase_limits, current_elapsed,
-                tls_phase_durations
+                tls_phase_durations, max_extend_sec
                 # port 将在下面分配
             ))
         
@@ -1701,20 +1901,11 @@ def tsc_reward_fn(
             valid_indices = []
             invalid_reward = float(REWARD_CONFIG['invalid_output_reward'])
             
-            # 获取端口池配置
-            port_base = REWARD_CONFIG.get('parallel_port_base', 20000)
-            num_workers = max(1, REWARD_CONFIG.get('parallel_workers', 8))
-            
             for i, task in enumerate(tasks):
                 if task is None:
                     pass  # 稍后填充
                 else:
-                    # 为每个任务分配一个唯一端口（基于任务索引循环分配）
-                    # 使用模运算确保端口在 worker 池范围内循环
-                    assigned_port = port_base + (i % num_workers) * 100
-                    # 将端口添加到任务 tuple 末尾
-                    task_with_port = task + (assigned_port,)
-                    valid_tasks.append(task_with_port)
+                    valid_tasks.append(task)
                     valid_indices.append(i)
             
             # 使用 map 并行执行所有有效任务（返回 (reward, reason)）
@@ -1909,6 +2100,10 @@ def tsc_reward_fn(
                         if isinstance(prompt_messages, list):
                             phase_limits = _extract_phase_limits_from_prompt(prompt_messages)
 
+                    # 提取 max_extend_sec
+                    prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
+                    max_extend_sec = _extract_max_extend_sec_from_prompt(prompt_messages) if isinstance(prompt_messages, list) else None
+
                     result = score_extend_decision(
                         simulator,
                         tl_id,
@@ -1917,6 +2112,7 @@ def tsc_reward_fn(
                         wait_time_for_phase_change=int(wait_time or 0),
                         current_elapsed_sec=elapsed,
                         tls_phase_durations=tls_durs,
+                        max_extend_sec=max_extend_sec,
                     )
                     rewards.append(float(result["reward"]))
                     reasons.append(str(result["reason"]))

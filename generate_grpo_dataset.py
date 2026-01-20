@@ -63,6 +63,7 @@ CONFIG = {
     'extend_min_green_range': (5, 20),
     'extend_max_green_range': (45, 120),
     'extend_wait_time_range': (5, 25),
+    'max_extend_sec': 8,  # extend_decision 中 extend_sec 的最大值
     'parallel_port_base': 30000,  # 并行端口基址（worker_i 使用 base + i*100 范围内的端口）
 }
 
@@ -706,6 +707,7 @@ def generate_dataset_for_one_tl_two_scenarios(
             current_phase_elapsed_sec=elapsed,
             wait_time_for_phase_change=wait_time,
             phase_metrics_now=phase_metrics_now,
+            max_extend_sec=CONFIG.get('max_extend_sec', 8),
         )
 
         full_prompt = wrap_extend_decision_prompt(payload)
