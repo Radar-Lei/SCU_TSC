@@ -526,15 +526,20 @@ def generate_dataset_for_one_tl_two_scenarios(
     samples: List[dict] = []
     rng_base = random.Random(hash(scenario_name) ^ hash(tl_id))
     
-    # Helper: check if all phases have 0 queue and 0 passed vehicles (empty traffic)
+    # Helper: check if less than half of phases have non-zero traffic (empty traffic)
     def _is_empty_traffic_sample(phase_metrics: List[Dict[str, Any]]) -> bool:
         """
-        Returns True if all phases have avg_queue_veh == 0 and avg_passed_veh_in_current_green == 0.
+        Returns True if fewer than half of the phases have non-zero avg_queue_veh or avg_passed_veh_in_current_green.
+        A sample is considered "non-empty" only if at least half of the phases have traffic.
         """
+        if not phase_metrics:
+            return True
+        non_zero_count = 0
         for m in phase_metrics:
             if m.get('avg_queue_veh', 0) > 0 or m.get('avg_passed_veh_in_current_green', 0) > 0:
-                return False
-        return True
+                non_zero_count += 1
+        # If at least half of the phases have non-zero traffic, it's NOT empty
+        return non_zero_count < len(phase_metrics) / 2
 
     # 初始化相位跟踪
     track = _init_phase_tracking(simulator, tl_id)
