@@ -19,7 +19,7 @@ from collections import deque
 from typing import Any, Dict, List, Tuple
 from datasets import Dataset
 from pathlib import Path
-from multiprocessing import Pool, cpu_count
+import multiprocessing as mp
 from functools import partial
 
 # 添加项目路径
@@ -63,6 +63,7 @@ CONFIG = {
     'extend_min_green_range': (5, 20),
     'extend_max_green_range': (45, 120),
     'extend_wait_time_range': (5, 25),
+    'parallel_port_base': 30000,  # 并行端口基址（worker_i 使用 base + i*100 范围内的端口）
 }
 
 SYSTEM_PROMPT = """你是交通信号配时优化专家。
@@ -379,13 +380,19 @@ def generate_dataset_for_one_tl(
     tl_id: str,
     env_info: dict,
     state_root: str,
+    port: int = None,
 ) -> List[dict]:
-    """为一个信号灯生成 dataset 样本"""
+    """为一个信号灯生成 dataset 样本
+    
+    Args:
+        port: 指定的 SUMO 端口（用于避免并行冲突）
+    """
     
     simulator = SUMOSimulator(
         config_file=env_info['sumocfg'],
         junctions_file=None,
         gui=CONFIG['gui'],
+        port=port,
     )
     
     if not simulator.start_simulation():
@@ -478,8 +485,13 @@ def generate_dataset_for_one_tl_two_scenarios(
     tl_id: str,
     env_info: dict,
     state_root: str,
+    port: int = None,
 ) -> List[dict]:
-    """为一个信号灯生成两大场景 dataset 样本"""
+    """为一个信号灯生成两大场景 dataset 样本
+    
+    Args:
+        port: 指定的 SUMO 端口（用于避免并行冲突）
+    """
     import traci
 
     simulator = SUMOSimulator(
@@ -487,6 +499,7 @@ def generate_dataset_for_one_tl_two_scenarios(
         junctions_file=None,
         gui=CONFIG['gui'],
         additional_options=['--device.rerouting.probability', '0'],  # 禁用动态重路由
+        port=port,
     )
 
     if not simulator.start_simulation():
@@ -743,7 +756,10 @@ def _worker_process_tl(args: Tuple) -> Tuple[str, str, List[dict]]:
     Returns:
         (scenario_name, tl_id, samples)
     """
-    scenario_name, tl_id, env_info, state_root, dataset_mode = args
+    scenario_name, tl_id, env_info, state_root, dataset_mode, worker_id, port_base = args
+    
+    # 为该 worker 分配固定端口
+    assigned_port = port_base + worker_id * 100
     
     try:
         if dataset_mode == 'two_scenarios':
@@ -752,6 +768,7 @@ def _worker_process_tl(args: Tuple) -> Tuple[str, str, List[dict]]:
                 tl_id=tl_id,
                 env_info=env_info,
                 state_root=state_root,
+                port=assigned_port,
             )
         else:
             samples = generate_dataset_for_one_tl(
@@ -759,6 +776,7 @@ def _worker_process_tl(args: Tuple) -> Tuple[str, str, List[dict]]:
                 tl_id=tl_id,
                 env_info=env_info,
                 state_root=state_root,
+                port=assigned_port,
             )
         return (scenario_name, tl_id, samples)
     except Exception as e:
@@ -816,17 +834,23 @@ def main(num_workers: int = None):
     os.makedirs(state_root, exist_ok=True)
     
     # 准备参数列表（每个 worker 需要的参数）
+    # 使用 spawn 上下文和固定端口池
+    port_base = CONFIG.get('parallel_port_base', 30000)
     worker_args = []
-    for scenario_name, tl_id in all_pairs:
+    for worker_id, (scenario_name, tl_id) in enumerate(all_pairs):
         env_info = available_envs[scenario_name]
-        worker_args.append((scenario_name, tl_id, env_info, state_root, dataset_mode))
+        worker_args.append((scenario_name, tl_id, env_info, state_root, dataset_mode, worker_id % num_workers, port_base))
     
     all_samples = []
     
     # 并行处理
     if num_workers > 1:
         print(f"\n开始并行生成（{num_workers} workers）...")
-        with Pool(processes=num_workers) as pool:
+        print(f"端口范围: {port_base}-{port_base + num_workers * 100}")
+        
+        # 使用 spawn 上下文避免 fork 的线程安全问题
+        mp_context = mp.get_context("spawn")
+        with mp_context.Pool(processes=num_workers) as pool:
             # 使用 imap_unordered 可以边完成边处理结果
             results = pool.imap_unordered(_worker_process_tl, worker_args, chunksize=1)
             

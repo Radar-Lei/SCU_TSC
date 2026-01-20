@@ -54,20 +54,26 @@ REWARD_CONFIG = {
     'invalid_output_reward': -2.0,
     # Multi-reward mode (when using GRPOTrainer(reward_funcs=[sim, format]))
     'format_reward_valid': 0.0,
-    'format_reward_invalid': -0.3,
+    'format_reward_invalid': -1.0,
     'sim_reward_clip_min': -1.0,
     'sim_reward_clip_max': 1.0,
     'parallel_workers': 16,  # 并行 SUMO worker 数量（使用固定端口池避免冲突）
-    'parallel_port_base': 20000,  # 并行端口基址（worker_i 使用 base + i*100 范围内的端口）
+    'parallel_port_base': 40000,  # 并行端口基址（worker_i 使用 base + i*100 范围内的端口）
     'green_sec_min': 1,     # signal_step 的 green_sec 下限
     'green_sec_max': 120,   # signal_step 的 green_sec 上限
 }
 
 
-# ==================== 全局 spawn 进程池（常驻） ====================
-# 使用 spawn 模式避免 fork 的线程安全问题
-_MP_CONTEXT = mp.get_context("spawn")
+# ==================== 全局 forkserver 进程池（常驻） ====================
+# 使用 forkserver 模式避免 fork 的线程安全问题，同时避免 spawn 与 vLLM 的 CUDA 冲突
+# Note: spawn 模式在 vLLM 环境下会导致 CUDA 重初始化死锁
+try:
+    _MP_CONTEXT = mp.get_context("forkserver")
+except ValueError:
+    # forkserver 不可用时回退到 fork
+    _MP_CONTEXT = mp.get_context("fork")
 _GLOBAL_MP_POOL = None  # 延迟初始化
+_MP_POOL_INITIALIZED = False  # 标记是否已尝试初始化
 
 # Worker 端口分配：每个 worker 获得一个固定端口
 # 使用进程本地存储来保存 worker 的分配端口
@@ -143,19 +149,29 @@ def _get_worker_port() -> int:
 
 def _ensure_mp_pool_initialized():
     """确保全局进程池已初始化（延迟初始化，避免import时启动）"""
-    global _GLOBAL_MP_POOL
+    global _GLOBAL_MP_POOL, _MP_POOL_INITIALIZED
+    
+    # 如果已经尝试过初始化（成功或失败），直接返回
+    if _MP_POOL_INITIALIZED:
+        return _GLOBAL_MP_POOL
+    
+    _MP_POOL_INITIALIZED = True
+    
     if _GLOBAL_MP_POOL is None:
         num_workers = REWARD_CONFIG['parallel_workers']
         if num_workers > 0:
             port_base = REWARD_CONFIG.get('parallel_port_base', 20000)
-            print(f"[tsc_reward_function] 初始化 spawn 进程池，workers={num_workers}，端口范围={port_base}-{port_base + num_workers * 100}")
+            print(f"[tsc_reward_function] 初始化进程池，workers={num_workers}，端口范围={port_base}-{port_base + num_workers * 100}")
             
-            # 使用 initializer 为每个 worker 分配唯一端口
-            # 注意：Pool 的 initializer 不能传递 worker_id，需要使用其他方式
-            # 改用 imap_unordered + 任务内分配端口的方式
-            _GLOBAL_MP_POOL = _MP_CONTEXT.Pool(processes=num_workers)
-            # 注册 atexit 钩子确保程序退出时清理
-            atexit.register(_cleanup_mp_pool)
+            try:
+                # 改用 imap_unordered + 任务内分配端口的方式
+                _GLOBAL_MP_POOL = _MP_CONTEXT.Pool(processes=num_workers)
+                # 注册 atexit 钩子确保程序退出时清理
+                atexit.register(_cleanup_mp_pool)
+                print(f"[tsc_reward_function] 进程池初始化成功")
+            except Exception as e:
+                print(f"[tsc_reward_function] 进程池初始化失败，将使用串行模式: {e}")
+                _GLOBAL_MP_POOL = None
     return _GLOBAL_MP_POOL
 
 
@@ -164,10 +180,10 @@ def _cleanup_mp_pool():
     global _GLOBAL_MP_POOL
     if _GLOBAL_MP_POOL is not None:
         try:
-            print("[tsc_reward_function] 关闭 spawn 进程池...")
+            print("[tsc_reward_function] 关闭进程池...")
             _GLOBAL_MP_POOL.close()
             _GLOBAL_MP_POOL.join()
-            print("[tsc_reward_function] spawn 进程池已关闭")
+            print("[tsc_reward_function] 进程池已关闭")
         except Exception as e:
             print(f"[tsc_reward_function] 进程池关闭失败: {e}")
         finally:
@@ -964,6 +980,13 @@ def tsc_reward_format_fn(
     global_step = getattr(trainer_state, "global_step", None)
     if _REWARD_DIAG.get("window_start_step") is None and global_step is not None:
         _REWARD_DIAG["window_start_step"] = int(global_step)
+    
+    # Completion logging: log first 3 completions every 5 steps
+    if global_step is not None and int(global_step) % 5 == 0:
+        print(f"\n[completion_log] step={global_step}, num_completions={len(completion_texts)}")
+        for idx, ct in enumerate(completion_texts[:3]):
+            task_type = task_types[idx] if (task_types and idx < len(task_types)) else "unknown"
+            print(f"  [{idx}] ({task_type}): {ct[:150]}{'...' if len(ct) > 150 else ''}")
 
     rewards: List[float] = []
     reasons: List[str] = []
@@ -988,6 +1011,14 @@ def tsc_reward_format_fn(
             prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
             if isinstance(prompt_messages, list):
                 current_phase_id = _extract_current_phase_id_from_prompt(prompt_messages)
+                # Fallback: 如果 dataset 中缺失 phase_limits，从 prompt 提取
+                if not phase_limits:
+                    phase_limits = _extract_phase_limits_from_prompt(prompt_messages)
+                # Fallback: 如果 dataset 中缺失 wait_time，从 prompt 提取
+                if not wait_time:
+                    extracted_wait = _extract_wait_time_from_prompt(prompt_messages)
+                    if extracted_wait is not None:
+                        wait_time = int(extracted_wait)
 
         ok, v_reason, _action2 = validate_action(
             str(task_type),
@@ -1017,6 +1048,25 @@ def tsc_reward_format_fn(
                 _REWARD_DIAG["window_invalid"] += 1
                 _REWARD_DIAG["window_invalid_by_task"][task_type] += 1
             _REWARD_DIAG.setdefault("window_reason_by_task", {}).setdefault(task_type, Counter())[reason] += 1
+        
+        # Store per-batch diagnostics for KL spike debugging
+        if global_step is not None:
+            batch_info = {
+                "num_completions": len(completion_texts),
+                "num_generations": num_generations,
+                "sample_completions": completion_texts[:3],
+                "sample_reasons": reasons[:3],
+                "sample_rewards": [float(r) for r in rewards[:3]],
+                "task_types": list(set(task_types)) if task_types else [],
+                "invalid_count": sum(1 for r in rewards if float(r) == invalid_reward),
+            }
+            _REWARD_DIAG["last_batch_by_step"][int(global_step)] = batch_info
+            _REWARD_DIAG["last_batch_latest"] = batch_info
+            # Cleanup old entries (keep only last max_steps_kept)
+            max_kept = _REWARD_DIAG.get("max_steps_kept", 300)
+            if len(_REWARD_DIAG["last_batch_by_step"]) > max_kept:
+                oldest = min(_REWARD_DIAG["last_batch_by_step"].keys())
+                del _REWARD_DIAG["last_batch_by_step"][oldest]
     except Exception:
         pass
 
@@ -1180,6 +1230,14 @@ def tsc_reward_sim_fn(
             prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
             if isinstance(prompt_messages, list):
                 current_phase_id = _extract_current_phase_id_from_prompt(prompt_messages)
+                # Fallback: 如果 dataset 中缺失 phase_limits，从 prompt 提取
+                if not phase_limits:
+                    phase_limits = _extract_phase_limits_from_prompt(prompt_messages)
+                # Fallback: 如果 dataset 中缺失 wait_time，从 prompt 提取
+                if not wait_time:
+                    extracted_wait = _extract_wait_time_from_prompt(prompt_messages)
+                    if extracted_wait is not None:
+                        wait_time = int(extracted_wait)
 
         ok, _v_reason, action = validate_action(
             str(task_type),
@@ -1234,8 +1292,20 @@ def tsc_reward_sim_fn(
             results = list(map(_simulate_valid_action_worker, tasks))
         else:
             try:
-                results = pool.map(_simulate_valid_action_worker, tasks, chunksize=1)
-            except Exception:
+                # 为每个任务分配固定端口
+                port_base = REWARD_CONFIG.get('parallel_port_base', 20000)
+                num_workers = REWARD_CONFIG.get('parallel_workers', 16)
+                tasks_with_ports = []
+                for i, task in enumerate(tasks):
+                    # 为每个任务分配一个worker端口（循环使用）
+                    worker_id = i % num_workers
+                    port = port_base + worker_id * 100
+                    # 将port追加到任务元组末尾
+                    tasks_with_ports.append(task + (port,))
+                
+                results = pool.map(_simulate_valid_action_worker, tasks_with_ports, chunksize=1)
+            except Exception as e:
+                print(f"[tsc_reward_sim_fn] 并行执行失败，回退到串行: {e}")
                 results = list(map(_simulate_valid_action_worker, tasks))
     else:
         results = list(map(_simulate_valid_action_worker, tasks))

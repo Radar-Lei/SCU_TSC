@@ -153,7 +153,18 @@ def build_extend_decision_input_json(
 ) -> Dict[str, Any]:
     """
     Build payload for extend_decision_input_json.
+    
+    Note: phase_metrics_now is a list but will be converted to phase_metrics_by_id (dict) in the payload.
     """
+    # Convert list to dict by phase_id
+    phase_metrics_by_id: Dict[str, Dict[str, Any]] = {}
+    for m in phase_metrics_now:
+        pid = str(m.get("phase_id", ""))
+        phase_metrics_by_id[pid] = {
+            "avg_queue_veh": m.get("avg_queue_veh", 0.0),
+            "avg_passed_veh_in_current_green": m.get("avg_passed_veh_in_current_green", 0.0),
+        }
+    
     payload: Dict[str, Any] = {
         "crossing_id": stable_crossing_id(scenario_name, tl_id),
         "as_of": as_of or now_str(),
@@ -166,7 +177,7 @@ def build_extend_decision_input_json(
             "current_phase_id": int(current_phase_id),
             "current_phase_elapsed_sec": int(current_phase_elapsed_sec),
             "wait_time_for_phase_change": int(wait_time_for_phase_change),
-            "phase_metrics_now": phase_metrics_now,
+            "phase_metrics_by_id": phase_metrics_by_id,
         },
     }
     return payload
@@ -179,39 +190,49 @@ def wrap_extend_decision_prompt(payload: Dict[str, Any]) -> str:
     import json
     json_text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     
-    prompt = f"""你是交通信号控制优化专家。【extend_decision_input_json】{json_text}【/extend_decision_input_json】
+    prompt = f"""你是交通信号控制优化专家。
+
+【extend_decision_input_json】{json_text}【/extend_decision_input_json】
 
 字段含义（仅说明含义）：
+
 * phase_order：相位执行顺序，循环执行；不可跳相、不可重排。
 * phase_limits.*.min_green / max_green：该相位单次绿灯的最小/最大持续时间（秒）。
 * state.current_phase_elapsed_sec：当前相位已执行的绿灯时长（秒）。
 * state.wait_time_for_phase_change：从"现在"到能够完成相位切换所需的等待时间（秒）；该时间会占用当前相位的剩余时间预算。
-* state.phase_metrics_now[*].avg_queue_veh：该相位在当前时刻的平均排队车辆数（辆）；可由该相位所控制车道的排队车辆数取平均得到。
-* state.phase_metrics_now[*].avg_passed_veh_in_current_green：该相位在"当前正在执行的绿灯相位"内至当前时刻累计平均通过车辆数（辆）；可由该相位所控制车道的通过车辆数取平均得到；通常只有当前相位会 >0，非当前绿灯相位一般为 0。
+* state.phase_metrics_by_id[pid].avg_queue_veh：该相位在当前时刻的平均排队车辆数（辆）。
+* state.phase_metrics_by_id[pid].avg_passed_veh_in_current_green：该相位在"当前正在执行的绿灯相位"内至当前时刻累计平均通过车辆数（辆）；通常只有当前相位会 >0，非当前绿灯相位一般为 0。
 
 任务（必须完成）：
+
 1. 基于输入 JSON 的 scenario 与 state，自行决定决策策略/参数，判断"是否需要延长当前绿灯相位"。
 2. 若需要延长，给出延长时间 extend_sec（单位：秒）。
 
 要求（必须遵守）：
+
 1. 你必须显式利用 avg_queue_veh 与 avg_passed_veh_in_current_green 来决策；不得无视输入随意给出答案。
 2. 延长决策必须考虑当前相位与其他相位的相对需求：当前相位队列大且仍在有效放行（通过增长）时更倾向延长；其他相位队列明显更大时更倾向不延长以尽快切换。
 3. 不得编造不存在的观测数据。
 
 硬约束（必须满足）：
+
 1. 相位顺序固定：按 phase_order 循环推进；本任务只允许决定"是否延长当前相位"，不允许改变相位顺序或直接切到其他相位。
-2. 相位时长约束：
-   * 定义：final_green_sec = state.current_phase_elapsed_sec + extend_sec
-   * 必须满足：phase_limits[current_phase_id].min_green ≤ final_green_sec + state.wait_time_for_phase_change ≤ phase_limits[current_phase_id].max_green
-3. extend_sec 必须为整数秒，且 extend_sec ≥ 0。若 state.current_phase_elapsed_sec + state.wait_time_for_phase_change 已经 ≥ phase_limits[current_phase_id].max_green，则必须输出不延长：extend_sec=0。
+2. 相位时长约束（以"到完成切换"为止的当前相位总占用时间"为准）：
+
+   * 定义：total_occupied_sec = state.current_phase_elapsed_sec + extend_sec + state.wait_time_for_phase_change
+   * 必须满足：phase_limits[current_phase_id].min_green ≤ total_occupied_sec ≤ phase_limits[current_phase_id].max_green
+
+3. extend_sec 必须为整数秒，且 extend_sec ≥ 0。
+4. 若 state.current_phase_elapsed_sec + state.wait_time_for_phase_change 已经 ≥ phase_limits[current_phase_id].max_green，则必须输出不延长：extend="否", extend_sec=0。
+5. 若 state.current_phase_elapsed_sec + state.wait_time_for_phase_change < phase_limits[current_phase_id].min_green，则为了满足最小绿灯约束，你必须输出延长：extend="是"，且
+   extend_sec ≥ phase_limits[current_phase_id].min_green - (state.current_phase_elapsed_sec + state.wait_time_for_phase_change)。
 
 输出要求（必须严格遵守）：
-1. 只输出最终 JSON（不要任何说明、不要 Markdown 代码块、不要额外文本、不要复述规则、不要输出推理过程）。
+
+1. 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。
 2. JSON 顶层必须是对象，且仅包含两个字段：
    {{"extend": "<是/否>", "extend_sec": <int>}}
-3. extend 的值必须是"是"或"否"（不要用 yes/no/true/false）。
-4. extend_sec 必须为非负整数。
-5. 不允许输出其它字段，不允许添加任何解释性文本。"""
+3. 不允许输出其它字段。"""
     
     return prompt
 
