@@ -653,10 +653,13 @@ def generate_dataset_for_one_tl_two_scenarios(
         else:
             min_green = int(limits["min_green"])
             max_green = int(limits["max_green"])
+            max_target = max_green - wait_time
+            if max_target < min_green:
+                max_target = min_green
             if step_idx == 0:
                 target_elapsed = min_green
             else:
-                target_elapsed = rng.randint(min_green, max_green)
+                target_elapsed = rng.randint(min_green, max_target)
 
         # 推进到决策时刻（确保当前相位持续时间足够）
         max_guard_steps = 600

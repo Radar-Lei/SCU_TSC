@@ -66,6 +66,11 @@ REWARD_CONFIG = {
     'port_cleanup_mode': 'sumo_only',  # sumo_only | any
     'green_sec_min': 1,     # signal_step 的 green_sec 下限
     'green_sec_max': 120,   # signal_step 的 green_sec 上限
+    # Soft format penalties for extend_decision
+    'extend_exceed_penalty_per_sec': 0.05,  # extend="是" 且超出 max_extend_sec 时每秒扣分
+    'extend_exceed_penalty_cap': 0.5,       # extend="是" 超出时最大扣分
+    'extend_no_penalty_per_sec': 0.05,      # extend="否" 但 extend_sec!=0 时每秒扣分
+    'extend_no_penalty_cap': 0.3,           # extend="否" 但 extend_sec!=0 时最大扣分
 }
 
 
@@ -1189,6 +1194,26 @@ def tsc_reward_format_fn(
             max_extend_sec=max_extend_sec if str(task_type) == "extend_decision" else None,
         )
         if not ok:
+            if str(task_type) == "extend_decision":
+                extend = str(action.get("extend"))
+                extend_sec = int(action.get("extend_sec", 0))
+                if v_reason == "extend_decision_extend_sec_exceeds_max":
+                    if max_extend_sec is not None:
+                        exceed = max(0, extend_sec - int(max_extend_sec))
+                        per_sec = float(REWARD_CONFIG.get("extend_exceed_penalty_per_sec", 0.05))
+                        cap = float(REWARD_CONFIG.get("extend_exceed_penalty_cap", 0.5))
+                        penalty = -min(cap, per_sec * exceed)
+                        rewards.append(float(penalty))
+                        reasons.append(f"{v_reason}_soft")
+                        continue
+                if v_reason == "extend_decision_extend_sec_nonzero_when_no" and extend == "否":
+                    per_sec = float(REWARD_CONFIG.get("extend_no_penalty_per_sec", 0.05))
+                    cap = float(REWARD_CONFIG.get("extend_no_penalty_cap", 0.3))
+                    penalty = -min(cap, per_sec * max(0, extend_sec))
+                    rewards.append(float(penalty))
+                    reasons.append(f"{v_reason}_soft")
+                    continue
+
             rewards.append(invalid_reward)
             reasons.append(v_reason)
             continue
@@ -1203,7 +1228,8 @@ def tsc_reward_format_fn(
             sample_idx = i if task_types_expanded else (i // max(1, num_generations))
             task_type = task_types[sample_idx] if (task_types and sample_idx < len(task_types)) else "unknown"
             _REWARD_DIAG["window_total_by_task"][task_type] += 1
-            if float(r) == invalid_reward:
+            is_soft = str(reason).endswith("_soft")
+            if float(r) == invalid_reward or is_soft:
                 _REWARD_DIAG["window_invalid"] += 1
                 _REWARD_DIAG["window_invalid_by_task"][task_type] += 1
             _REWARD_DIAG.setdefault("window_reason_by_task", {}).setdefault(task_type, Counter())[reason] += 1
