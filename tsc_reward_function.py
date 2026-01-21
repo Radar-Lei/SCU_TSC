@@ -50,11 +50,11 @@ REWARD_CONFIG = {
     'w_queue': 1.0,
     'w_proxy': 0.2,
     'w_sim': 1.5,
-    'w_constraint': 1.5,
+    'w_constraint': 1.0,
     # 'D0': 25.0,  # 软约束归一化尺度
     'alpha_passed': 0.5,
     'beta_queue': 1.0,
-    'invalid_output_reward': -2.0,
+    'invalid_output_reward': -1.0,
     # Multi-reward mode (when using GRPOTrainer(reward_funcs=[sim, format]))
     'format_reward_valid': 0.0,
     'format_reward_invalid': -1.0,
@@ -67,10 +67,10 @@ REWARD_CONFIG = {
     'green_sec_min': 1,     # signal_step 的 green_sec 下限
     'green_sec_max': 120,   # signal_step 的 green_sec 上限
     # Soft format penalties for extend_decision
-    'extend_exceed_penalty_per_sec': 0.05,  # extend="是" 且超出 max_extend_sec 时每秒扣分
-    'extend_exceed_penalty_cap': 0.5,       # extend="是" 超出时最大扣分
-    'extend_no_penalty_per_sec': 0.05,      # extend="否" 但 extend_sec!=0 时每秒扣分
-    'extend_no_penalty_cap': 0.3,           # extend="否" 但 extend_sec!=0 时最大扣分
+    'extend_exceed_penalty_per_sec': 0.02,  # extend="是" 且超出 max_extend_sec 时每秒扣分
+    'extend_exceed_penalty_cap': 0.1,       # extend="是" 超出时最大扣分
+    'extend_no_penalty_per_sec': 0.001,      # extend="否" 但 extend_sec!=0 时每秒扣分
+    'extend_no_penalty_cap': 0.02,           # extend="否" 但 extend_sec!=0 时最大扣分
 }
 
 
@@ -1022,6 +1022,15 @@ def _get_phase_incoming_lanes(simulator: SUMOSimulator, tl_id: str, phase_id: in
     return list(info.get("incoming_lanes", []))
 
 
+def _get_all_incoming_lanes(simulator: SUMOSimulator, tl_id: str) -> List[str]:
+    phase_info = simulator.get_phase_info(tl_id)
+    n = int(phase_info.get("num_phases", 0))
+    all_lanes = set()
+    for idx in range(n):
+        all_lanes.update(simulator.get_phase_controlled_lanes(tl_id, idx).get("incoming_lanes", []))
+    return list(all_lanes)
+
+
 def _simulate_phase_window(
     simulator: SUMOSimulator,
     tl_id: str,
@@ -1032,6 +1041,7 @@ def _simulate_phase_window(
 
     duration = max(0, int(duration_sec))
     lanes = _get_phase_incoming_lanes(simulator, tl_id, phase_id)
+    all_lanes = _get_all_incoming_lanes(simulator, tl_id) or lanes
     vehicles_before = set()
     for ln in lanes:
         try:
@@ -1071,7 +1081,7 @@ def _simulate_phase_window(
     for _ in range(duration):
         traci.simulationStep()
         q = 0.0
-        for ln in lanes:
+        for ln in all_lanes:
             try:
                 q += traci.lane.getLastStepHaltingNumber(ln)
             except Exception:
@@ -1141,11 +1151,56 @@ def tsc_reward_format_fn(
         _REWARD_DIAG["window_start_step"] = int(global_step)
     
     # Completion logging: log first 3 completions every 5 steps
+    # For extend_decision: try to show 2 extend="是" and 1 extend="否" for balanced visibility
     if global_step is not None and int(global_step) % 5 == 0:
         print(f"\n[completion_log] step={global_step}, num_completions={len(completion_texts)}")
-        for idx, ct in enumerate(completion_texts[:3]):
-            task_type = task_types[idx] if (task_types and idx < len(task_types)) else "unknown"
-            print(f"  [{idx}] ({task_type}): {ct[:150]}{'...' if len(ct) > 150 else ''}")
+        
+        # Check if this batch is extend_decision
+        has_extend_decision = any(
+            (task_types[i] if (task_types and i < len(task_types)) else None) == "extend_decision"
+            for i in range(min(len(completion_texts), len(task_types) if task_types else 0))
+        )
+        
+        if has_extend_decision:
+            # For extend_decision, try to find 2 "是" and 1 "否"
+            extend_yes_samples = []
+            extend_no_samples = []
+            for idx, ct in enumerate(completion_texts):
+                task_type = task_types[idx] if (task_types and idx < len(task_types)) else "unknown"
+                if task_type != "extend_decision":
+                    continue
+                # Quick parse to check extend value
+                parsed = _parse_extend_decision_output(ct, debug=False)
+                if parsed:
+                    if parsed.get("extend") == "是":
+                        if len(extend_yes_samples) < 2:
+                            extend_yes_samples.append((idx, task_type, ct, parsed))
+                    elif parsed.get("extend") == "否":
+                        if len(extend_no_samples) < 1:
+                            extend_no_samples.append((idx, task_type, ct, parsed))
+                # Stop early if we have enough samples
+                if len(extend_yes_samples) >= 2 and len(extend_no_samples) >= 1:
+                    break
+            
+            # Print the selected samples: 2 "是" then 1 "否"
+            printed = 0
+            for idx, task_type, ct, parsed in extend_yes_samples:
+                print(f"[{idx}] ({task_type}):{parsed}")
+                printed += 1
+            for idx, task_type, ct, parsed in extend_no_samples:
+                print(f"[{idx}] ({task_type}):{parsed}")
+                printed += 1
+            
+            # If not enough samples found, fall back to first 3
+            if printed == 0:
+                for idx, ct in enumerate(completion_texts[:3]):
+                    task_type = task_types[idx] if (task_types and idx < len(task_types)) else "unknown"
+                    print(f"  [{idx}] ({task_type}): {ct[:150]}{'...' if len(ct) > 150 else ''}")
+        else:
+            # For non-extend_decision, just log first 3
+            for idx, ct in enumerate(completion_texts[:3]):
+                task_type = task_types[idx] if (task_types and idx < len(task_types)) else "unknown"
+                print(f"  [{idx}] ({task_type}): {ct[:150]}{'...' if len(ct) > 150 else ''}")
 
     rewards: List[float] = []
     reasons: List[str] = []

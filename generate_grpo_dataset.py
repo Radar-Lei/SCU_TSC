@@ -50,7 +50,7 @@ CONFIG = {
     'steps_per_tl': 20,          # 每个信号灯采样多少个时间步
     'steps_per_tl_signal_step': 10,
     'steps_per_tl_extend_decision': 10,
-    'max_tl_per_scenario': 5,    # 每个场景最多取多少个信号灯（限制 dataset 大小）
+    'max_tl_per_scenario': 10,    # 每个场景最多取多少个信号灯（限制 dataset 大小）
     'recent_cycles_maxlen': 12,
     'state_dir': 'grpo_states',  # SUMO state 保存目录
     'output_dir': 'grpo_dataset', # dataset 输出目录
@@ -63,7 +63,7 @@ CONFIG = {
     'extend_min_green_range': (5, 20),
     'extend_max_green_range': (45, 120),
     'extend_wait_time_range': (5, 25),
-    'max_extend_sec': 8,  # extend_decision 中 extend_sec 的最大值
+    'max_extend_sec': 10,  # extend_decision 中 extend_sec 的最大值
     'parallel_port_base': 30000,  # 并行端口基址（worker_i 使用 base + i*100 范围内的端口）
 }
 
