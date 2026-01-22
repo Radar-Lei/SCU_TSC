@@ -405,6 +405,12 @@ def generate_dataset_for_one_tl(
         if simulator.is_connected():
             simulator.step()
 
+    import traci
+    if tl_id not in traci.trafficlight.getIDList():
+        print(f"✗ 未在当前仿真中找到信号灯: {scenario_name}/{tl_id}")
+        simulator.close()
+        return []
+
     # 解析相位信息（只保留绿灯相位）
     phase_order = get_green_phase_order_one_based(env_info['net'], tl_id)
     if not phase_order:
@@ -510,6 +516,11 @@ def generate_dataset_for_one_tl_two_scenarios(
     for _ in range(CONFIG['warmup_steps']):
         if simulator.is_connected():
             simulator.step()
+
+    if tl_id not in traci.trafficlight.getIDList():
+        print(f"✗ 未在当前仿真中找到信号灯: {scenario_name}/{tl_id}")
+        simulator.close()
+        return []
 
     phase_order = get_green_phase_order_one_based(env_info['net'], tl_id)
     if not phase_order:
@@ -768,8 +779,10 @@ def _worker_process_tl(args: Tuple) -> Tuple[str, str, List[dict]]:
     """
     scenario_name, tl_id, env_info, state_root, dataset_mode, worker_id, port_base = args
     
-    # 为该 worker 分配固定端口
-    assigned_port = port_base + worker_id * 100
+    # 使用任务哈希值来分配端口，确保不同任务使用不同端口
+    # 端口范围：port_base 到 port_base + 9999
+    task_hash = hash((scenario_name, tl_id)) & 0x7FFFFFFF
+    assigned_port = port_base + (task_hash % 10000)
     
     try:
         if dataset_mode == 'two_scenarios':
@@ -856,7 +869,7 @@ def main(num_workers: int = None):
     # 并行处理
     if num_workers > 1:
         print(f"\n开始并行生成（{num_workers} workers）...")
-        print(f"端口范围: {port_base}-{port_base + num_workers * 100}")
+        print(f"端口范围: {port_base}-{port_base + 10000}")
         
         # 使用 spawn 上下文避免 fork 的线程安全问题
         mp_context = mp.get_context("spawn")

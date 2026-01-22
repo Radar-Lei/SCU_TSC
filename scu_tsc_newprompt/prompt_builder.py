@@ -224,8 +224,8 @@ def wrap_extend_decision_prompt(payload: Dict[str, Any]) -> str:
    * 定义：total_occupied_sec = state.current_phase_elapsed_sec + extend_sec + state.wait_time_for_phase_change
    * 必须满足：phase_limits[current_phase_id].min_green ≤ total_occupied_sec ≤ phase_limits[current_phase_id].max_green
 
-3. extend_sec 必须为整数秒，且 extend_sec ≥ 0。
-4. 若 state.current_phase_elapsed_sec + state.wait_time_for_phase_change 已经 ≥ phase_limits[current_phase_id].max_green，则必须输出不延长：extend="否", extend_sec=0。
+3. 若 extend="是"，则 extend_sec 必须为整数秒，且 extend_sec ≥ 0。
+4. 若 state.current_phase_elapsed_sec + state.wait_time_for_phase_change 已经 ≥ phase_limits[current_phase_id].max_green，则必须输出不延长：extend="否"（不要输出 extend_sec）。
 5. 若 state.current_phase_elapsed_sec + state.wait_time_for_phase_change < phase_limits[current_phase_id].min_green，则为了满足最小绿灯约束，你必须输出延长：extend="是"，且
    extend_sec ≥ phase_limits[current_phase_id].min_green - (state.current_phase_elapsed_sec + state.wait_time_for_phase_change)。
 6. 若 extend="是"，则 extend_sec ≤ max_extend_sec（单次延长不得超过该值）。
@@ -233,10 +233,10 @@ def wrap_extend_decision_prompt(payload: Dict[str, Any]) -> str:
 输出要求（必须严格遵守）：
 
 1. 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。
-2. JSON 顶层必须是对象，且仅包含两个字段：
-   {{"extend": "<是/否>", "extend_sec": <int>}}
+2. JSON 顶层必须是对象，且仅包含以下字段（按条件）：
+   * 若 extend="是"：{{"extend": "是", "extend_sec": <int>}}
+   * 若 extend="否"：{{"extend": "否"}}（不要输出 extend_sec）
 3. 不允许输出其它字段。"""
     
     return prompt
-
 

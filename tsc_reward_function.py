@@ -56,8 +56,8 @@ REWARD_CONFIG = {
     'beta_queue': 1.0,
     'invalid_output_reward': -1.0,
     # Multi-reward mode (when using GRPOTrainer(reward_funcs=[sim, format]))
-    'format_reward_valid': 0.0,
-    'format_reward_invalid': -1.0,
+    'format_reward_valid': 0.1,
+    'format_reward_invalid': -0.5,
     'sim_reward_clip_min': -1.0,
     'sim_reward_clip_max': 1.0,
     'parallel_workers': 16,  # 并行 SUMO worker 数量（使用固定端口池避免冲突）
@@ -66,11 +66,14 @@ REWARD_CONFIG = {
     'port_cleanup_mode': 'sumo_only',  # sumo_only | any
     'green_sec_min': 1,     # signal_step 的 green_sec 下限
     'green_sec_max': 120,   # signal_step 的 green_sec 上限
-    # Soft format penalties for extend_decision
-    'extend_exceed_penalty_per_sec': 0.02,  # extend="是" 且超出 max_extend_sec 时每秒扣分
-    'extend_exceed_penalty_cap': 0.1,       # extend="是" 超出时最大扣分
-    'extend_no_penalty_per_sec': 0.001,      # extend="否" 但 extend_sec!=0 时每秒扣分
-    'extend_no_penalty_cap': 0.02,           # extend="否" 但 extend_sec!=0 时最大扣分
+    # Constraint reward config for extend_decision (used by tsc_reward_constraint_fn)
+    'constraint_reward_extend_valid': 0.1,          # extend="是" 且满足约束时的正奖励
+    'constraint_reward_extend_no': 0.0,             # extend="否" 时返回中性分（不适用约束）
+    'constraint_penalty_exceed_per_sec': 0.02,      # 超出 max_extend_sec 时每秒扣分
+    'constraint_penalty_exceed_cap': 0.2,           # 超出时最大扣分
+    'constraint_penalty_nonpositive': 0.2,          # extend="是" 但 extend_sec<=0 时扣分
+    'constraint_penalty_out_of_bounds_base': 0.1,   # final_green 超出 phase_limits 的基础扣分
+    'constraint_penalty_out_of_bounds_per_sec': 0.01,  # 超出 phase_limits 时每秒额外扣分
 }
 
 
@@ -521,12 +524,11 @@ def _parse_extend_decision_output(text: str, debug: bool = False) -> Union[Dict[
         if debug: print(f"  - 提取的不是dict: {type(obj)}")
         return None
     
-    # 容忍多余字段，只检查必需字段
-    if "extend" not in obj or "extend_sec" not in obj:
-        if debug: print(f"  - 缺少必需字段: {set(obj.keys())} 需要 {{extend, extend_sec}}")
-        return None
-    
     try:
+        if "extend" not in obj:
+            if debug: print(f"  - 缺少必需字段: {set(obj.keys())} 需要 {{extend}}")
+            return None
+
         # 容忍 extend 的同义值
         extend = obj.get("extend")
         if isinstance(extend, str):
@@ -552,6 +554,17 @@ def _parse_extend_decision_output(text: str, debug: bool = False) -> Union[Dict[
             if debug: print(f"  - extend类型错误: {type(extend)}")
             return None
         
+        has_extend_sec = "extend_sec" in obj
+        if extend == "否":
+            if has_extend_sec:
+                if debug: print("  - extend为否时不应输出 extend_sec")
+                return None
+            return {"extend": "否", "extend_sec": 0}
+
+        if not has_extend_sec:
+            if debug: print(f"  - extend为是时缺少 extend_sec: {set(obj.keys())}")
+            return None
+
         # 容忍数值字符串
         extend_sec = obj.get("extend_sec")
         if isinstance(extend_sec, str):
@@ -1115,19 +1128,18 @@ def tsc_reward_format_fn(
     **kwargs,
 ) -> List[float]:
     """
-    Format/constraint reward: penalize invalid outputs (parse/bounds), otherwise 0.
-
-    This function also drives reward_diag invalid-rate accounting (so you still get the same
-    [reward_diag] invalid_rate / top reasons output).
+    Pure format reward: only checks if completion is valid JSON with required fields.
+    
+    - Valid format (parseable JSON with correct fields): 0
+    - Invalid format (cannot parse or missing fields): -1
+    
+    This function only handles FORMAT checking. Constraint validation is handled by
+    tsc_reward_constraint_fn separately.
     """
-    valid_reward = float(REWARD_CONFIG.get("format_reward_valid", 0.5))
-    invalid_reward = float(REWARD_CONFIG.get("format_reward_invalid", -0.5))
+    valid_reward = float(REWARD_CONFIG.get("format_reward_valid", 0.0))
+    invalid_reward = float(REWARD_CONFIG.get("format_reward_invalid", -1.0))
 
     task_types = kwargs.get("task_type", [])
-    phase_ids_list = kwargs.get("phase_ids", [])
-    phase_limits_list = kwargs.get("phase_limits", [])
-    wait_times = kwargs.get("wait_time_for_phase_change", [])
-    elapsed_list = kwargs.get("current_phase_elapsed_sec", [])
 
     completion_texts: List[str] = []
     for c in completions:
@@ -1151,7 +1163,6 @@ def tsc_reward_format_fn(
         _REWARD_DIAG["window_start_step"] = int(global_step)
     
     # Completion logging: log first 3 completions every 5 steps
-    # For extend_decision: try to show 2 extend="是" and 1 extend="否" for balanced visibility
     if global_step is not None and int(global_step) % 5 == 0:
         print(f"\n[completion_log] step={global_step}, num_completions={len(completion_texts)}")
         
@@ -1209,82 +1220,23 @@ def tsc_reward_format_fn(
         sample_idx = i if task_types_expanded else (i // max(1, num_generations))
         task_type = task_types[sample_idx] if (task_types and sample_idx < len(task_types)) else None
 
+        # PURE FORMAT CHECK: only parse output, do not validate constraints
         action, reason = parse_output(completion_text, str(task_type), debug=False)
         if not action:
             rewards.append(invalid_reward)
             reasons.append(reason)
-            continue
+        else:
+            rewards.append(valid_reward)
+            reasons.append("ok")
 
-        phase_ids = phase_ids_list[sample_idx] if phase_ids_list else None
-        phase_limits = phase_limits_list[sample_idx] if phase_limits_list else None
-        wait_time = int(wait_times[sample_idx]) if wait_times and sample_idx < len(wait_times) else 0
-        elapsed = int(elapsed_list[sample_idx]) if elapsed_list and sample_idx < len(elapsed_list) else None
-
-        current_phase_id = None
-        if str(task_type) == "extend_decision":
-            prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
-            if isinstance(prompt_messages, list):
-                current_phase_id = _extract_current_phase_id_from_prompt(prompt_messages)
-                # Fallback: 如果 dataset 中缺失 phase_limits，从 prompt 提取
-                if not phase_limits:
-                    phase_limits = _extract_phase_limits_from_prompt(prompt_messages)
-                # Fallback: 如果 dataset 中缺失 wait_time，从 prompt 提取
-                if not wait_time:
-                    extracted_wait = _extract_wait_time_from_prompt(prompt_messages)
-                    if extracted_wait is not None:
-                        wait_time = int(extracted_wait)
-                # 提取 max_extend_sec
-                max_extend_sec = _extract_max_extend_sec_from_prompt(prompt_messages)
-            else:
-                max_extend_sec = None
-
-        ok, v_reason, _action2 = validate_action(
-            str(task_type),
-            action,
-            phase_ids=phase_ids,
-            phase_limits=phase_limits,
-            current_phase_id=current_phase_id,
-            current_elapsed_sec=elapsed,
-            wait_time_for_phase_change=wait_time,
-            max_extend_sec=max_extend_sec if str(task_type) == "extend_decision" else None,
-        )
-        if not ok:
-            if str(task_type) == "extend_decision":
-                extend = str(action.get("extend"))
-                extend_sec = int(action.get("extend_sec", 0))
-                if v_reason == "extend_decision_extend_sec_exceeds_max":
-                    if max_extend_sec is not None:
-                        exceed = max(0, extend_sec - int(max_extend_sec))
-                        per_sec = float(REWARD_CONFIG.get("extend_exceed_penalty_per_sec", 0.05))
-                        cap = float(REWARD_CONFIG.get("extend_exceed_penalty_cap", 0.5))
-                        penalty = -min(cap, per_sec * exceed)
-                        rewards.append(float(penalty))
-                        reasons.append(f"{v_reason}_soft")
-                        continue
-                if v_reason == "extend_decision_extend_sec_nonzero_when_no" and extend == "否":
-                    per_sec = float(REWARD_CONFIG.get("extend_no_penalty_per_sec", 0.05))
-                    cap = float(REWARD_CONFIG.get("extend_no_penalty_cap", 0.3))
-                    penalty = -min(cap, per_sec * max(0, extend_sec))
-                    rewards.append(float(penalty))
-                    reasons.append(f"{v_reason}_soft")
-                    continue
-
-            rewards.append(invalid_reward)
-            reasons.append(v_reason)
-            continue
-
-        rewards.append(valid_reward)
-        reasons.append("ok")
-
-    # Diagnostics aggregation (treat invalid when this format reward hits invalid penalty)
+    # Diagnostics aggregation
     try:
         _REWARD_DIAG["window_total"] += len(rewards)
         for i, (r, reason) in enumerate(zip(rewards, reasons)):
             sample_idx = i if task_types_expanded else (i // max(1, num_generations))
             task_type = task_types[sample_idx] if (task_types and sample_idx < len(task_types)) else "unknown"
             _REWARD_DIAG["window_total_by_task"][task_type] += 1
-            is_soft = str(reason).endswith("_soft")
-            if float(r) == invalid_reward or is_soft:
+            if float(r) == invalid_reward:
                 _REWARD_DIAG["window_invalid"] += 1
                 _REWARD_DIAG["window_invalid_by_task"][task_type] += 1
             _REWARD_DIAG.setdefault("window_reason_by_task", {}).setdefault(task_type, Counter())[reason] += 1
@@ -1309,6 +1261,140 @@ def tsc_reward_format_fn(
                 del _REWARD_DIAG["last_batch_by_step"][oldest]
     except Exception:
         pass
+
+    return rewards
+
+
+def tsc_reward_constraint_fn(
+    prompts: Union[List[str], List[List[dict]]],
+    completions: Union[List[str], List[List[dict]]],
+    completion_ids: List[List[int]],
+    **kwargs,
+) -> List[float]:
+    """
+    Constraint reward: validates extend_decision actions against constraints.
+    
+    Logic:
+    - extend="否": return 0 (neutral - constraints do not apply)
+    - extend="是" and valid: return +0.1 (positive reward for proper constraint adherence)
+    - extend="是" but extend_sec <= 0: return -0.2 (illogical)
+    - extend="是" but exceed max_extend_sec: return negative penalty proportional to excess
+    - extend="是" but final_green out of bounds: return negative penalty proportional to excess
+    - For signal_step: return 0 (no constraints to check in this function)
+    - Parse failure: return 0 (format_fn handles this)
+    """
+    task_types = kwargs.get("task_type", [])
+    phase_limits_list = kwargs.get("phase_limits", [])
+    wait_times = kwargs.get("wait_time_for_phase_change", [])
+    elapsed_list = kwargs.get("current_phase_elapsed_sec", [])
+
+    completion_texts: List[str] = []
+    for c in completions:
+        if isinstance(c, list) and len(c) > 0 and isinstance(c[-1], dict):
+            completion_texts.append(c[-1].get("content", ""))
+        else:
+            completion_texts.append(str(c))
+
+    num_generations = kwargs.get('num_generations')
+    if not num_generations:
+        num_generations = len(completion_texts) // max(1, len(prompts))
+    num_generations = max(1, int(num_generations))
+    
+    task_types_expanded = (len(task_types) == len(completion_texts))
+
+    valid_reward = float(REWARD_CONFIG.get("constraint_reward_extend_valid", 0.1))
+    no_extend_reward = float(REWARD_CONFIG.get("constraint_reward_extend_no", 0.0))
+    penalty_nonpositive = float(REWARD_CONFIG.get("constraint_penalty_nonpositive", 0.2))
+    penalty_exceed_per_sec = float(REWARD_CONFIG.get("constraint_penalty_exceed_per_sec", 0.02))
+    penalty_exceed_cap = float(REWARD_CONFIG.get("constraint_penalty_exceed_cap", 0.2))
+    penalty_oob_base = float(REWARD_CONFIG.get("constraint_penalty_out_of_bounds_base", 0.1))
+    penalty_oob_per_sec = float(REWARD_CONFIG.get("constraint_penalty_out_of_bounds_per_sec", 0.01))
+
+    rewards: List[float] = []
+
+    for i, completion_text in enumerate(completion_texts):
+        sample_idx = i if task_types_expanded else (i // max(1, num_generations))
+        task_type = task_types[sample_idx] if (task_types and sample_idx < len(task_types)) else None
+
+        # Only extend_decision needs constraint checking
+        if str(task_type) != "extend_decision":
+            rewards.append(0.0)  # neutral for signal_step
+            continue
+
+        # Parse the output
+        action, _reason = parse_output(completion_text, str(task_type), debug=False)
+        if not action:
+            rewards.append(0.0)  # format_fn handles parse errors
+            continue
+        
+        extend = str(action.get("extend", ""))
+        extend_sec = int(action.get("extend_sec", 0))
+
+        # extend="否" → constraints do not apply, neutral reward
+        if extend == "否":
+            rewards.append(no_extend_reward)
+            continue
+
+        # extend="是" cases below
+        if extend != "是":
+            rewards.append(0.0)  # unexpected value, let format_fn handle
+            continue
+
+        # extend="是" but extend_sec <= 0 → illogical
+        if extend_sec <= 0:
+            rewards.append(-penalty_nonpositive)
+            continue
+
+        # Extract context from prompt for constraint validation
+        prompt_messages = prompts[sample_idx] if sample_idx < len(prompts) else None
+        phase_limits = phase_limits_list[sample_idx] if phase_limits_list and sample_idx < len(phase_limits_list) else None
+        if wait_times and sample_idx < len(wait_times):
+            wait_time_raw = wait_times[sample_idx]
+            wait_time = int(wait_time_raw) if wait_time_raw is not None else 0
+        else:
+            wait_time = 0
+        elapsed = int(elapsed_list[sample_idx]) if elapsed_list and sample_idx < len(elapsed_list) else None
+
+        current_phase_id = None
+        max_extend_sec = None
+        if isinstance(prompt_messages, list):
+            current_phase_id = _extract_current_phase_id_from_prompt(prompt_messages)
+            if not phase_limits:
+                phase_limits = _extract_phase_limits_from_prompt(prompt_messages)
+            if not wait_time:
+                extracted_wait = _extract_wait_time_from_prompt(prompt_messages)
+                if extracted_wait is not None:
+                    wait_time = int(extracted_wait)
+            max_extend_sec = _extract_max_extend_sec_from_prompt(prompt_messages)
+
+        # Check max_extend_sec constraint
+        if max_extend_sec is not None and extend_sec > max_extend_sec:
+            exceed = extend_sec - int(max_extend_sec)
+            penalty = min(penalty_exceed_cap, penalty_exceed_per_sec * exceed)
+            rewards.append(-penalty)
+            continue
+
+        # Check phase_limits bounds
+        if phase_limits and current_phase_id is not None and elapsed is not None:
+            limits = phase_limits.get(str(int(current_phase_id)), None) if isinstance(phase_limits, dict) else None
+            if limits:
+                min_green = int(limits.get("min_green", 0))
+                max_green = int(limits.get("max_green", 120))
+                final_green = int(elapsed) + extend_sec + int(wait_time)
+                
+                if final_green > max_green:
+                    exceed = final_green - max_green
+                    penalty = penalty_oob_base + penalty_oob_per_sec * exceed
+                    rewards.append(-penalty)
+                    continue
+                elif final_green < min_green:
+                    deficit = min_green - final_green
+                    penalty = penalty_oob_base + penalty_oob_per_sec * deficit
+                    rewards.append(-penalty)
+                    continue
+
+        # All constraints satisfied → positive reward
+        rewards.append(valid_reward)
 
     return rewards
 
@@ -1484,7 +1570,11 @@ def tsc_reward_sim_fn(
 
         phase_ids = phase_ids_list[sample_idx] if phase_ids_list else None
         phase_limits = phase_limits_list[sample_idx] if phase_limits_list else None
-        wait_time = int(wait_times[sample_idx]) if wait_times and sample_idx < len(wait_times) else 0
+        if wait_times and sample_idx < len(wait_times):
+            wait_time_raw = wait_times[sample_idx]
+            wait_time = int(wait_time_raw) if wait_time_raw is not None else 0
+        else:
+            wait_time = 0
         elapsed = int(elapsed_list[sample_idx]) if elapsed_list and sample_idx < len(elapsed_list) else None
         tls_durs = tls_durs_list[sample_idx] if tls_durs_list and sample_idx < len(tls_durs_list) else []
 

@@ -38,16 +38,19 @@ def generate_synthetic_response(messages):
             # Heuristic for extend_decision
             # Simple heuristic: 50% yes/no
             should_extend = random.choice(["是", "否"])
-            extend_sec = 0
             if should_extend == "是":
                 # 从 prompt 中提取 max_extend_sec，默认为 8
                 max_extend_sec = data.get("max_extend_sec", 8)
                 extend_sec = random.randint(1, max_extend_sec)
-                
-            return json.dumps({
-                "extend": should_extend,
-                "extend_sec": extend_sec
-            })
+                return json.dumps({
+                    "extend": should_extend,
+                    "extend_sec": extend_sec
+                })
+            else:
+                # extend="否" 时不输出 extend_sec
+                return json.dumps({
+                    "extend": should_extend
+                })
             
     return None
 
