@@ -16,3 +16,4 @@ __pycache__/
 unsloth_compiled_cache/
 unsloth_compiled_cache/
 llama.cpp/
+.trae/
