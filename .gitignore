@@ -3,6 +3,7 @@ tsc_grpo_saved_lora/
 unsloth_compiled_cache/
 outputs_tsc/
 grpo_trainer_lora_model/
+save_upload_model/
 data_TSC/
 .venv/
 sumo_simulation/
@@ -13,7 +14,6 @@ sft_dataset_synthetic/
 grpo_states_two_scenarios/
 checkpoints/
 __pycache__/
-unsloth_compiled_cache/
-unsloth_compiled_cache/
 llama.cpp/
 .trae/
+.vscode/
