@@ -41,12 +41,13 @@
 
 ## 使用示例（实现后）
 - 生成 30 天、按天拆分：
-  - ```python3 sumo_simulation/tools/rou_month_generator.py \
-  --input sumo_simulation/environments/arterial4x4_1/arterial4x4_1.rou.xml \
+  - ```python rou_month_generator.py \
+  --input sumo_simulation/environments/chengdu/chengdu.rou.xml \
   --start-date 2026-01-01 --days 30 \
   --split-by-day \
-  --output-dir sumo_simulation/environments/arterial4x4_1/arterial4x4_1_daily \
+  --output-dir sumo_simulation/environments/chengdu/chengdu_daily \
   --validate```
+  
 - 仍生成单个大文件（原行为）：
   - `python3 sumo_simulation/tools/rou_month_generator.py --input .../arterial4x4_1.rou.xml --days 30`
 

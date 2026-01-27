@@ -1,22 +1,18 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-TSC 标准 Unsloth GRPO 训练（两大场景）
+# coding: utf-8
 
-使用标准 Unsloth GRPOTrainer + 离线 Dataset + Reward Function 回溯 SUMO 评估
-"""
+# # TSC 标准 Unsloth GRPO 训练（两大场景）
+# 
+# 使用标准 Unsloth GRPOTrainer + 离线 Dataset + Reward Function 回溯 SUMO 评估
+
+# ## 1. 环境配置
+
+# In[ ]:
+
 
 import os
 import sys
-import json
-import random
-import re
-import torch
-import gc
-from datasets import load_from_disk, Dataset
-from collections import Counter
 
-# ==================== 1. 环境配置 ====================
 os.environ["UNSLOTH_USE_MODELSCOPE"] = "1"
 os.environ["UNSLOTH_VLLM_STANDBY"] = "1"
 os.environ["MODELSCOPE_CACHE"] = "model"
@@ -24,7 +20,13 @@ os.environ["HF_HOME"] = "model"
 print("环境变量已设置")
 
 
-# ==================== 1.5 生成/检查 Dataset（可选） ====================
+# ## 1.5 生成/检查 Dataset（可选）
+# 
+# 如果 dataset 不存在，此 cell 会自动生成；如果已存在，则跳过。
+
+# In[ ]:
+
+
 from generate_grpo_dataset import main as generate_main, CONFIG
 
 DATASET_PATH = "grpo_dataset_two_scenarios"
@@ -66,7 +68,19 @@ else:
     print(f"✓ Dataset 已存在: {DATASET_PATH}")
 
 
-# ==================== 1.8 Generate Synthetic SFT Dataset ====================
+# ## 1.8 Generate Synthetic SFT Dataset
+# 
+# Based on the GRPO dataset, generate synthetic responses to create an SFT dataset.
+
+# In[ ]:
+
+
+import os
+import json
+import random
+import re
+from datasets import load_from_disk, Dataset
+
 def extract_json_content(text, marker):
     pattern = f"【{marker}】(.*?)【/{marker}】"
     match = re.search(pattern, text, re.DOTALL)
@@ -112,14 +126,9 @@ def generate_synthetic_response(messages):
             
     return None
 
-def generate_sft_dataset():
+def main():
     INPUT_PATH = "grpo_dataset_two_scenarios"
     OUTPUT_PATH = "sft_dataset_synthetic"
-    
-    # Skip if SFT dataset already exists
-    if os.path.exists(OUTPUT_PATH):
-        print(f"✓ SFT dataset 已存在: {OUTPUT_PATH}，跳过生成")
-        return
     
     if not os.path.exists(INPUT_PATH):
         print(f"Error: {INPUT_PATH} not found.")
@@ -171,155 +180,162 @@ def generate_sft_dataset():
     print("\nSample 0:")
     print(json.dumps(sft_dataset[0]["messages"][-1], ensure_ascii=False, indent=2))
 
-generate_sft_dataset()
+if __name__ == "__main__":
+    main()
 
 
-# ==================== 1.9 SFT Training ====================
-def train_sft():
-    from unsloth import FastLanguageModel
-    from trl import SFTConfig, SFTTrainer
-    from unsloth.chat_templates import get_chat_template
-    from transformers import EarlyStoppingCallback
-    
-    # ==================== Config ====================
-    max_seq_length = 1024
-    lora_rank = 32
-    # model_name = "rd211/Qwen3-0.6B-Instruct"
-    model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    output_dir = "checkpoints/sft_tsc_synthetic"
-    dataset_path = "sft_dataset_synthetic"
-    
-    # Skip if SFT checkpoint already exists
-    if os.path.isdir(output_dir) and os.path.isfile(os.path.join(output_dir, "adapter_config.json")):
-        print(f"✓ SFT checkpoint 已存在: {output_dir}，跳过训练")
-        return
-    
-    # ==================== Load Model ====================
-    print(f"Loading model: {model_name}")
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=model_name,
-        max_seq_length=max_seq_length,
-        load_in_4bit=False,
-        fast_inference=False,
-        max_lora_rank=lora_rank,
-        gpu_memory_utilization=0.7,
-    )
+# ## 1.9 SFT Training
+# 
+# Train the model on the synthetic SFT dataset before GRPO.
 
-    model = FastLanguageModel.get_peft_model(
-        model,
-        r=lora_rank,
-        target_modules=[
-            "q_proj", "k_proj", "v_proj", "o_proj",
-            "gate_proj", "up_proj", "down_proj",
-        ],
-        lora_alpha=lora_rank * 2,
-        use_gradient_checkpointing="unsloth",
-        random_state=3407,
-    )
-    model.config.use_cache = False
-
-    # ==================== Load Dataset ====================
-    if not os.path.isdir(dataset_path):
-        raise FileNotFoundError(f"Dataset not found: {dataset_path}. Run generate_synthetic_sft_dataset.py first.")
-
-    dataset = load_from_disk(dataset_path)
-    print(f"Loaded {len(dataset)} samples for SFT.")
-
-    # Split dataset into train and test
-    dataset = dataset.train_test_split(test_size=0.05, seed=42)
-    train_dataset = dataset["train"]
-    eval_dataset = dataset["test"]
-
-    # Limit eval dataset to 200 samples for speed
-    if len(eval_dataset) > 500:
-        eval_dataset = eval_dataset.select(range(500))
-
-    print(f"Train samples: {len(train_dataset)}")
-    print(f"Eval samples: {len(eval_dataset)}")
-
-    # ==================== Configure Trainer ====================
-    # Apply chat template
-    tokenizer = get_chat_template(
-        tokenizer,
-        chat_template="qwen-2.5", 
-    )
-
-    # Formatting function for chat 
-    def formatting_prompts_func(examples):
-        convos = examples["messages"]
-        
-        # Logic to handle both batched and non-batched inputs
-        if isinstance(convos, list) and len(convos) > 0 and isinstance(convos[0], dict):
-            # Single conversation (list of dicts)
-            texts = [tokenizer.apply_chat_template(convos, tokenize=False, add_generation_prompt=False)]
-        else:
-            # Batch of conversations (list of lists of dicts)
-            texts = [tokenizer.apply_chat_template(convo, tokenize=False, add_generation_prompt=False) for convo in convos]
-            
-        return texts
-
-    trainer = SFTTrainer(
-        model=model,
-        tokenizer=tokenizer,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        max_seq_length=max_seq_length,
-        dataset_num_proc=2,
-        packing=False, 
-        formatting_func=formatting_prompts_func,
-        args=SFTConfig(
-            output_dir=output_dir,
-            num_train_epochs=3, # Increase epochs relying on early stopping
-            per_device_train_batch_size=2,
-            per_device_eval_batch_size=1,
-            gradient_accumulation_steps=4,
-            learning_rate=2e-4, 
-            fp16=not torch.cuda.is_bf16_supported(),
-            bf16=torch.cuda.is_bf16_supported(),
-            fp16_full_eval=not torch.cuda.is_bf16_supported(),
-            bf16_full_eval=torch.cuda.is_bf16_supported(),
-            logging_steps=10,
-            eval_strategy="steps",
-            eval_steps=30, # Evaluate every 30 steps
-            save_strategy="steps",
-            save_steps=30,
-            load_best_model_at_end=True,
-            metric_for_best_model="eval_loss",
-            greater_is_better=False,
-            optim="adamw_8bit",
-            weight_decay=0.01,
-            lr_scheduler_type="linear",
-            seed=3407,
-            report_to="none",
-        ),
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)] # Stop if no improvement for 3 eval steps (90 steps)
-    )
+# In[ ]:
 
 
-    print("Starting SFT Training with Early Stopping...")
-    trainer.train()
-
-    print(f"Saving model to {output_dir}")
-    model.save_pretrained(output_dir)
-    tokenizer.save_pretrained(output_dir)
-    print("Done.")
-
-
-    # Clean up memory for the next stage
-    try:
-        del model, tokenizer, trainer
-    except NameError:
-        pass
-    gc.collect()
-    torch.cuda.empty_cache()
-    print("Memory cleaned up for GRPO stage.")
-
-train_sft()
-
-
-# ==================== 2. 加载模型 ====================
+import os
+import torch
 from unsloth import FastLanguageModel
+from trl import SFTConfig, SFTTrainer
+from datasets import load_from_disk
 from unsloth.chat_templates import get_chat_template
+from transformers import EarlyStoppingCallback
+
+# ==================== Config ====================
+max_seq_length = 1024
+lora_rank = 32
+# model_name = "rd211/Qwen3-0.6B-Instruct"
+model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+output_dir = "checkpoints/sft_tsc_synthetic"
+dataset_path = "sft_dataset_synthetic"
+
+# ==================== Load Model ====================
+print(f"Loading model: {model_name}")
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=model_name,
+    max_seq_length=max_seq_length,
+    load_in_4bit=False,
+    fast_inference=False,
+    max_lora_rank=lora_rank,
+    gpu_memory_utilization=0.7,
+)
+
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=lora_rank,
+    target_modules=[
+        "q_proj", "k_proj", "v_proj", "o_proj",
+        "gate_proj", "up_proj", "down_proj",
+    ],
+    lora_alpha=lora_rank * 2,
+    use_gradient_checkpointing="unsloth",
+    random_state=3407,
+)
+model.config.use_cache = False
+
+# ==================== Load Dataset ====================
+if not os.path.isdir(dataset_path):
+    raise FileNotFoundError(f"Dataset not found: {dataset_path}. Run generate_synthetic_sft_dataset.py first.")
+
+dataset = load_from_disk(dataset_path)
+print(f"Loaded {len(dataset)} samples for SFT.")
+
+# Split dataset into train and test
+dataset = dataset.train_test_split(test_size=0.05, seed=42)
+train_dataset = dataset["train"]
+eval_dataset = dataset["test"]
+
+# Limit eval dataset to 200 samples for speed
+if len(eval_dataset) > 500:
+    eval_dataset = eval_dataset.select(range(500))
+
+print(f"Train samples: {len(train_dataset)}")
+print(f"Eval samples: {len(eval_dataset)}")
+
+# ==================== Configure Trainer ====================
+# Apply chat template
+tokenizer = get_chat_template(
+    tokenizer,
+    chat_template="qwen-2.5", 
+)
+
+# Formatting function for chat 
+def formatting_prompts_func(examples):
+    convos = examples["messages"]
+    
+    # Logic to handle both batched and non-batched inputs
+    if isinstance(convos, list) and len(convos) > 0 and isinstance(convos[0], dict):
+        # Single conversation (list of dicts)
+        texts = [tokenizer.apply_chat_template(convos, tokenize=False, add_generation_prompt=False)]
+    else:
+        # Batch of conversations (list of lists of dicts)
+        texts = [tokenizer.apply_chat_template(convo, tokenize=False, add_generation_prompt=False) for convo in convos]
+        
+    return texts
+
+trainer = SFTTrainer(
+    model=model,
+    tokenizer=tokenizer,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+    max_seq_length=max_seq_length,
+    dataset_num_proc=2,
+    packing=False, 
+    formatting_func=formatting_prompts_func,
+    args=SFTConfig(
+        output_dir=output_dir,
+        num_train_epochs=3, # Increase epochs relying on early stopping
+        per_device_train_batch_size=4,
+        per_device_eval_batch_size=1,
+        gradient_accumulation_steps=4,
+        learning_rate=2e-4, 
+        fp16=not torch.cuda.is_bf16_supported(),
+        bf16=torch.cuda.is_bf16_supported(),
+        fp16_full_eval=not torch.cuda.is_bf16_supported(),
+        bf16_full_eval=torch.cuda.is_bf16_supported(),
+        logging_steps=10,
+        eval_strategy="steps",
+        eval_steps=30, # Evaluate every 30 steps
+        save_strategy="steps",
+        save_steps=30,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
+        optim="adamw_8bit",
+        weight_decay=0.01,
+        lr_scheduler_type="linear",
+        seed=3407,
+        report_to="none",
+    ),
+    callbacks=[EarlyStoppingCallback(early_stopping_patience=3)] # Stop if no improvement for 3 eval steps (90 steps)
+)
+
+
+print("Starting SFT Training with Early Stopping...")
+trainer.train()
+
+print(f"Saving model to {output_dir}")
+model.save_pretrained(output_dir)
+tokenizer.save_pretrained(output_dir)
+print("Done.")
+
+
+# Clean up memory for the next stage
+import gc
+try:
+    del model, tokenizer, trainer
+except NameError:
+    pass
+gc.collect()
+torch.cuda.empty_cache()
+print("Memory cleaned up for GRPO stage.")
+
+
+# ## 2. 加载模型
+
+# In[ ]:
+
+
+from unsloth import FastLanguageModel
+import torch
 
 max_seq_length = 2048
 lora_rank = 32
@@ -427,6 +443,7 @@ if tokenizer.pad_token_id is None:
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
 # Apply the same chat template as SFT training
+from unsloth.chat_templates import get_chat_template
 tokenizer = get_chat_template(
     tokenizer,
     chat_template="qwen-2.5",  # Must match SFT training template
@@ -444,7 +461,14 @@ print(f"Tokenizer pad_token_id: {tokenizer.pad_token_id}")
 print(f"Tokenizer bos_token_id: {tokenizer.bos_token_id}")
 
 
-# ==================== 3. 加载 Dataset ====================
+# ## 3. 加载 Dataset
+
+# In[ ]:
+
+
+from datasets import load_from_disk
+from datasets import Dataset
+
 DATASET_PATH = "grpo_dataset_two_scenarios"
 EVAL_TEST_SIZE = 0.001
 EVAL_MAX_SAMPLES = 64
@@ -485,6 +509,7 @@ try:
 
     print(f"✓ Train/Eval split: train={len(train_dataset)}, eval={len(eval_dataset)}")
     if "task_type" in train_dataset.column_names:
+        from collections import Counter
         print("  - eval task_type counts:", Counter(eval_dataset["task_type"]))
 except Exception as e:
     print(f"⚠️ Train/Eval split failed completely: {e}")
@@ -498,7 +523,17 @@ print("示例 Prompt (message list):")
 print(dataset[0]["prompt"])
 
 
-# ==================== 4. 导入 Reward Function ====================
+# In[ ]:
+
+
+print(dataset[60]["prompt"])
+
+
+# ## 4. 导入 Reward Function
+
+# In[ ]:
+
+
 from tsc_reward_function import (
     tsc_reward_sim_fn,
     tsc_reward_format_fn,
@@ -562,7 +597,11 @@ diag_callback = RewardDiagnosticsCallback(kl_spike_threshold=5.0)
 print("✓ Reward function 加载成功")
 
 
-# ==================== 5. 配置 GRPOTrainer ====================
+# ## 5. 配置 GRPOTrainer
+
+# In[ ]:
+
+
 from trl import GRPOConfig, GRPOTrainer
 
 # 快速验证模式：取消下面注释以使用短训练
@@ -613,7 +652,7 @@ config = GRPOConfig(
     optim="adamw_torch",
     weight_decay=0.001,
     warmup_ratio=0.1,
-    beta=0.01,             # KL 系数（0.0 默认不加载 ref）
+    beta=0.01,             # KL 系数（0.0 默认不加载 ref）:contentReference[oaicite:1]{index=1}
     max_grad_norm=0.5,    # 梯度裁剪（防 KL spike）
 
     # 其他
@@ -629,7 +668,13 @@ else:
     print(f"  - max_steps: {config.max_steps} (全epoch)")
 
 
-# ==================== 6. 创建 GRPOTrainer 并开始训练 ====================
+# ## 6. 创建 GRPOTrainer 并开始训练
+
+# In[ ]:
+
+
+# Ensure output directory exists and is writable
+import os
 import stat
 
 output_dir = config.output_dir
@@ -682,21 +727,31 @@ print("训练完成")
 print("="*60)
 
 
-# ==================== 7. 保存最终模型 ====================
+# ## 7. 保存最终模型
+
+# In[ ]:
+
+
 final_output_dir = "checkpoints/grpo_tsc_two_scenarios_final"
 trainer.save_model(final_output_dir)
 tokenizer.save_pretrained(final_output_dir)
 print(f"✓ 最终模型已保存到: {final_output_dir}")
 
 
-# ==================== 8. 清理资源 ====================
+# ## 8. 清理资源
+
+# In[ ]:
+
+
 cleanup_global_pool()
 print("✓ Simulator 池已清理")
 
 
-# ==================== 9. 测试推理（可选） ====================
-# Uncomment the following lines to test inference
-"""
+# ## 9. 测试推理（可选）
+
+# In[ ]:
+
+
 FastLanguageModel.for_inference(model)
 
 test_sample = dataset[0]
@@ -719,4 +774,4 @@ outputs = model.generate(
 generated_text = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 print(generated_text)
 print("-" * 60)
-"""
+

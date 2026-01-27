@@ -17,3 +17,6 @@ __pycache__/
 llama.cpp/
 .trae/
 .vscode/
+LightGBM/
+optuna/
+optuna-examples/
