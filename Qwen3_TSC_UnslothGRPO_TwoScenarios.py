@@ -28,9 +28,13 @@ print("环境变量已设置")
 from generate_grpo_dataset import main as generate_main, CONFIG
 
 DATASET_PATH = "grpo_dataset_two_scenarios"
+FORCE_REGEN = os.getenv("FORCE_REGEN", "").strip() == "1"
 
-if not os.path.isdir(DATASET_PATH):
-    print(f"⚠️ Dataset 不存在: {DATASET_PATH}")
+if FORCE_REGEN or not os.path.isdir(DATASET_PATH):
+    if FORCE_REGEN and os.path.isdir(DATASET_PATH):
+        print(f"⚠️ FORCE_REGEN=1，重新生成 dataset: {DATASET_PATH}")
+    else:
+        print(f"⚠️ Dataset 不存在: {DATASET_PATH}")
     print("开始生成 dataset...")
 
     # 快速验证模式：取消下面注释以使用小规模dataset
@@ -76,6 +80,33 @@ import json
 import random
 import re
 from datasets import load_from_disk, Dataset
+
+def looks_like_hf_dataset_dir(path: str, required_columns: set[str] | None = None) -> bool:
+    if not os.path.isdir(path):
+        return False
+    try:
+        names = os.listdir(path)
+    except Exception:
+        return False
+    has_arrow = any(n.endswith(".arrow") for n in names)
+    has_markers = any(n in {"state.json", "dataset_info.json"} for n in names)
+    if not (has_arrow or has_markers):
+        return False
+    try:
+        ds = load_from_disk(path)
+    except Exception:
+        return False
+    if required_columns:
+        if hasattr(ds, "column_names"):
+            cols = set(ds.column_names or [])
+        elif hasattr(ds, "keys"):
+            first_key = next(iter(ds.keys()), None)
+            cols = set(ds[first_key].column_names or []) if first_key else set()
+        else:
+            cols = set()
+        if not required_columns.issubset(cols):
+            return False
+    return True
 
 def extract_json_content(text, marker):
     pattern = f"【{marker}】(.*?)【/{marker}】"
@@ -125,10 +156,16 @@ def generate_synthetic_response(messages):
 def main():
     INPUT_PATH = "grpo_dataset_two_scenarios"
     OUTPUT_PATH = "sft_dataset_synthetic"
+    force_regen = os.getenv("FORCE_REGEN", "").strip() == "1"
     
     if not os.path.exists(INPUT_PATH):
         print(f"Error: {INPUT_PATH} not found.")
         return
+    if (not force_regen) and looks_like_hf_dataset_dir(OUTPUT_PATH, required_columns={"messages"}):
+        print(f"✓ Synthetic SFT dataset 已存在: {OUTPUT_PATH}，跳过生成")
+        return
+    if force_regen:
+        print("FORCE_REGEN=1，忽略已存在检查，继续生成 synthetic SFT dataset")
 
     print(f"Loading dataset from {INPUT_PATH}...")
     dataset = load_from_disk(INPUT_PATH)
@@ -201,127 +238,133 @@ lora_rank = 32
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
 output_dir = "checkpoints/sft_tsc_synthetic"
 dataset_path = "sft_dataset_synthetic"
+force_sft_train = os.getenv("FORCE_SFT_TRAIN", "").strip() == "1"
 
-# ==================== Load Model ====================
-print(f"Loading model: {model_name}")
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name=model_name,
-    max_seq_length=max_seq_length,
-    load_in_4bit=False,
-    fast_inference=False,
-    max_lora_rank=lora_rank,
-    gpu_memory_utilization=0.7,
-)
+def looks_like_lora_checkpoint(path: str) -> bool:
+    if not os.path.isdir(path):
+        return False
+    marker_files = [
+        "adapter_config.json",
+        "adapter_model.safetensors",
+        "adapter_model.bin",
+    ]
+    has_config = os.path.isfile(os.path.join(path, "adapter_config.json"))
+    has_weights = any(os.path.isfile(os.path.join(path, f)) for f in marker_files[1:])
+    return bool(has_config and has_weights)
 
-model = FastLanguageModel.get_peft_model(
-    model,
-    r=lora_rank,
-    target_modules=[
-        "q_proj", "k_proj", "v_proj", "o_proj",
-        "gate_proj", "up_proj", "down_proj",
-    ],
-    lora_alpha=lora_rank * 2,
-    use_gradient_checkpointing="unsloth",
-    random_state=3407,
-)
-model.config.use_cache = False
+if looks_like_lora_checkpoint(output_dir) and (not force_sft_train):
+    print(f"✓ SFT 已完成: {output_dir}，跳过训练")
+else:
+    if force_sft_train:
+        print("FORCE_SFT_TRAIN=1，忽略已存在检查，继续进行 SFT 训练")
+    # ==================== Load Model ====================
+    print(f"Loading model: {model_name}")
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=model_name,
+        max_seq_length=max_seq_length,
+        load_in_4bit=False,
+        fast_inference=False,
+        max_lora_rank=lora_rank,
+        gpu_memory_utilization=0.7,
+    )
 
-# ==================== Load Dataset ====================
-if not os.path.isdir(dataset_path):
-    raise FileNotFoundError(f"Dataset not found: {dataset_path}. Run generate_synthetic_sft_dataset.py first.")
+    model = FastLanguageModel.get_peft_model(
+        model,
+        r=lora_rank,
+        target_modules=[
+            "q_proj", "k_proj", "v_proj", "o_proj",
+            "gate_proj", "up_proj", "down_proj",
+        ],
+        lora_alpha=lora_rank * 2,
+        use_gradient_checkpointing="unsloth",
+        random_state=3407,
+    )
+    model.config.use_cache = False
 
-dataset = load_from_disk(dataset_path)
-print(f"Loaded {len(dataset)} samples for SFT.")
+    if not os.path.isdir(dataset_path):
+        raise FileNotFoundError(f"Dataset not found: {dataset_path}. Run generate_synthetic_sft_dataset.py first.")
 
-# Split dataset into train and test
-dataset = dataset.train_test_split(test_size=0.05, seed=42)
-train_dataset = dataset["train"]
-eval_dataset = dataset["test"]
+    dataset = load_from_disk(dataset_path)
+    print(f"Loaded {len(dataset)} samples for SFT.")
 
-# Limit eval dataset to 200 samples for speed
-if len(eval_dataset) > 500:
-    eval_dataset = eval_dataset.select(range(500))
+    dataset = dataset.train_test_split(test_size=0.05, seed=42)
+    train_dataset = dataset["train"]
+    eval_dataset = dataset["test"]
 
-print(f"Train samples: {len(train_dataset)}")
-print(f"Eval samples: {len(eval_dataset)}")
+    if len(eval_dataset) > 500:
+        eval_dataset = eval_dataset.select(range(500))
 
-# ==================== Configure Trainer ====================
-# Apply chat template
-tokenizer = get_chat_template(
-    tokenizer,
-    chat_template="qwen-2.5", 
-)
+    print(f"Train samples: {len(train_dataset)}")
+    print(f"Eval samples: {len(eval_dataset)}")
 
-# Formatting function for chat 
-def formatting_prompts_func(examples):
-    convos = examples["messages"]
-    
-    # Logic to handle both batched and non-batched inputs
-    if isinstance(convos, list) and len(convos) > 0 and isinstance(convos[0], dict):
-        # Single conversation (list of dicts)
-        texts = [tokenizer.apply_chat_template(convos, tokenize=False, add_generation_prompt=False)]
-    else:
-        # Batch of conversations (list of lists of dicts)
-        texts = [tokenizer.apply_chat_template(convo, tokenize=False, add_generation_prompt=False) for convo in convos]
+    tokenizer = get_chat_template(
+        tokenizer,
+        chat_template="qwen-2.5", 
+    )
+
+    def formatting_prompts_func(examples):
+        convos = examples["messages"]
         
-    return texts
+        if isinstance(convos, list) and len(convos) > 0 and isinstance(convos[0], dict):
+            texts = [tokenizer.apply_chat_template(convos, tokenize=False, add_generation_prompt=False)]
+        else:
+            texts = [tokenizer.apply_chat_template(convo, tokenize=False, add_generation_prompt=False) for convo in convos]
+            
+        return texts
 
-trainer = SFTTrainer(
-    model=model,
-    tokenizer=tokenizer,
-    train_dataset=train_dataset,
-    eval_dataset=eval_dataset,
-    max_seq_length=max_seq_length,
-    dataset_num_proc=2,
-    packing=False, 
-    formatting_func=formatting_prompts_func,
-    args=SFTConfig(
-        output_dir=output_dir,
-        num_train_epochs=3, # Increase epochs relying on early stopping
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=1,
-        gradient_accumulation_steps=4,
-        learning_rate=2e-4, 
-        fp16=not torch.cuda.is_bf16_supported(),
-        bf16=torch.cuda.is_bf16_supported(),
-        fp16_full_eval=not torch.cuda.is_bf16_supported(),
-        bf16_full_eval=torch.cuda.is_bf16_supported(),
-        logging_steps=10,
-        eval_strategy="steps",
-        eval_steps=30, # Evaluate every 30 steps
-        save_strategy="steps",
-        save_steps=30,
-        load_best_model_at_end=True,
-        metric_for_best_model="eval_loss",
-        greater_is_better=False,
-        optim="adamw_8bit",
-        weight_decay=0.01,
-        lr_scheduler_type="linear",
-        seed=3407,
-        report_to="none",
-    ),
-    callbacks=[EarlyStoppingCallback(early_stopping_patience=3)] # Stop if no improvement for 3 eval steps (90 steps)
-)
+    trainer = SFTTrainer(
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        max_seq_length=max_seq_length,
+        dataset_num_proc=2,
+        packing=False, 
+        formatting_func=formatting_prompts_func,
+        args=SFTConfig(
+            output_dir=output_dir,
+            num_train_epochs=3,
+            per_device_train_batch_size=4,
+            per_device_eval_batch_size=1,
+            gradient_accumulation_steps=4,
+            learning_rate=2e-4, 
+            fp16=not torch.cuda.is_bf16_supported(),
+            bf16=torch.cuda.is_bf16_supported(),
+            fp16_full_eval=not torch.cuda.is_bf16_supported(),
+            bf16_full_eval=torch.cuda.is_bf16_supported(),
+            logging_steps=10,
+            eval_strategy="steps",
+            eval_steps=30,
+            save_strategy="steps",
+            save_steps=30,
+            load_best_model_at_end=True,
+            metric_for_best_model="eval_loss",
+            greater_is_better=False,
+            optim="adamw_8bit",
+            weight_decay=0.01,
+            lr_scheduler_type="linear",
+            seed=3407,
+            report_to="none",
+        ),
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
+    )
 
+    print("Starting SFT Training with Early Stopping...")
+    trainer.train()
 
-print("Starting SFT Training with Early Stopping...")
-trainer.train()
+    print(f"Saving model to {output_dir}")
+    model.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
+    print("Done.")
 
-print(f"Saving model to {output_dir}")
-model.save_pretrained(output_dir)
-tokenizer.save_pretrained(output_dir)
-print("Done.")
-
-
-# Clean up memory for the next stage
-import gc
-try:
-    del model, tokenizer, trainer
-except NameError:
-    pass
-gc.collect()
-torch.cuda.empty_cache()
-print("Memory cleaned up for GRPO stage.")
+    import gc
+    try:
+        del model, tokenizer, trainer
+    except NameError:
+        pass
+    gc.collect()
+    torch.cuda.empty_cache()
+    print("Memory cleaned up for GRPO stage.")
 
 # %% [markdown]
 # ## 2. 加载模型
@@ -750,4 +793,3 @@ outputs = model.generate(
 generated_text = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 print(generated_text)
 print("-" * 60)
-

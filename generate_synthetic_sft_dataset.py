@@ -4,6 +4,33 @@ import random
 import re
 from datasets import load_from_disk, Dataset
 
+def looks_like_hf_dataset_dir(path: str, required_columns: set[str] | None = None) -> bool:
+    if not os.path.isdir(path):
+        return False
+    try:
+        names = os.listdir(path)
+    except Exception:
+        return False
+    has_arrow = any(n.endswith(".arrow") for n in names)
+    has_markers = any(n in {"state.json", "dataset_info.json"} for n in names)
+    if not (has_arrow or has_markers):
+        return False
+    try:
+        ds = load_from_disk(path)
+    except Exception:
+        return False
+    if required_columns:
+        if hasattr(ds, "column_names"):
+            cols = set(ds.column_names or [])
+        elif hasattr(ds, "keys"):
+            first_key = next(iter(ds.keys()), None)
+            cols = set(ds[first_key].column_names or []) if first_key else set()
+        else:
+            cols = set()
+        if not required_columns.issubset(cols):
+            return False
+    return True
+
 def extract_json_content(text, marker):
     pattern = f"【{marker}】(.*?)【/{marker}】"
     match = re.search(pattern, text, re.DOTALL)
@@ -57,10 +84,16 @@ def generate_synthetic_response(messages):
 def main():
     INPUT_PATH = "grpo_dataset_two_scenarios"
     OUTPUT_PATH = "sft_dataset_synthetic"
+    force_regen = os.getenv("FORCE_REGEN", "").strip() == "1"
     
     if not os.path.exists(INPUT_PATH):
         print(f"Error: {INPUT_PATH} not found.")
         return
+    if (not force_regen) and looks_like_hf_dataset_dir(OUTPUT_PATH, required_columns={"messages"}):
+        print(f"✓ Synthetic SFT dataset 已存在: {OUTPUT_PATH}，跳过生成")
+        return
+    if force_regen:
+        print("FORCE_REGEN=1，忽略已存在检查，继续生成 synthetic SFT dataset")
 
     print(f"Loading dataset from {INPUT_PATH}...")
     dataset = load_from_disk(INPUT_PATH)
