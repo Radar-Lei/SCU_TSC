@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-GRPO数据集生成器配置模块
+GRPO配置模块
 
-所有可配置参数集中在此文件，便于用户修改。
+包含两个配置类：
+1. GRPOConfig: 数据集生成配置（原有的）
+2. GRPOTrainingConfig: GRPO训练配置（新增）
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
+import yaml
 
 
 @dataclass
@@ -109,3 +112,152 @@ SYSTEM_PROMPT = """你是交通信号控制优化专家。
   {"extend": "<yes/no>"}
 - extend 的取值只能是"yes"或"no"，不允许输出其它字段或其它取值。
 """
+
+
+@dataclass
+class GRPOTrainingConfig:
+    """GRPO训练配置"""
+
+    # ============== 模型配置 ==============
+    model_path: str
+    max_seq_length: int = 2048
+
+    # ============== GRPO核心参数 ==============
+    learning_rate: float = 1.0e-5
+    batch_size: int = 2
+    gradient_accumulation_steps: int = 4
+    num_generations: int = 4
+    temperature: float = 0.9
+    kl_coeff: float = 0.1
+
+    # ============== 生成控制参数 ==============
+    max_new_tokens: int = 50
+    top_p: float = 0.9
+    repetition_penalty: float = 1.0
+
+    # ============== 训练参数 ==============
+    num_train_epochs: int = 3
+    warmup_steps: int = 10
+    logging_steps: int = 5
+    save_steps: int = 50
+    optim: str = "adamw_8bit"
+
+    # ============== Reward权重 ==============
+    format_weight: float = 1.0
+    tsc_weight: float = 1.0
+
+    # ============== SUMO仿真参数 ==============
+    max_workers: int = 4
+    extend_seconds: int = 5
+
+    # ============== 数据路径 ==============
+    dataset_path: str = "/home/samuel/SCU_TSC/data/grpo_datasets"
+
+    # ============== 输出路径 ==============
+    output_dir: str = "/home/samuel/SCU_TSC/model/grpo_model"
+
+    # ============== 日志配置 ==============
+    use_wandb: bool = False
+    wandb_project: str = "scu-tsc-grpo"
+    wandb_run_name: Optional[str] = None
+
+    # ============== 高级参数 ==============
+    lora_rank: int = 32
+    gradient_checkpointing: bool = True
+    seed: int = 3407
+
+    def __post_init__(self):
+        """参数验证"""
+        # 验证数值范围
+        if self.learning_rate <= 0:
+            raise ValueError(f"learning_rate必须大于0，当前值: {self.learning_rate}")
+
+        if self.batch_size <= 0:
+            raise ValueError(f"batch_size必须大于0，当前值: {self.batch_size}")
+
+        if self.num_generations <= 0:
+            raise ValueError(f"num_generations必须大于0，当前值: {self.num_generations}")
+
+        if not (0 <= self.temperature <= 2):
+            raise ValueError(f"temperature必须在[0, 2]范围内，当前值: {self.temperature}")
+
+        if not (0 <= self.top_p <= 1):
+            raise ValueError(f"top_p必须在[0, 1]范围内，当前值: {self.top_p}")
+
+        if self.kl_coeff < 0:
+            raise ValueError(f"kl_coeff必须非负，当前值: {self.kl_coeff}")
+
+        # 确保输出目录存在
+        os.makedirs(self.output_dir, exist_ok=True)
+
+    @classmethod
+    def from_yaml(cls, path: str) -> "GRPOTrainingConfig":
+        """
+        从YAML文件加载配置
+
+        Args:
+            path: YAML配置文件路径
+
+        Returns:
+            GRPOTrainingConfig实例
+        """
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+
+        # 处理wandb_run_name为None的情况
+        if "wandb_run_name" in data and data["wandb_run_name"] == "null":
+            data["wandb_run_name"] = None
+
+        return cls(**data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        转换为字典
+
+        Returns:
+            配置字典
+        """
+        return {
+            "model_path": self.model_path,
+            "max_seq_length": self.max_seq_length,
+            "learning_rate": self.learning_rate,
+            "batch_size": self.batch_size,
+            "gradient_accumulation_steps": self.gradient_accumulation_steps,
+            "num_generations": self.num_generations,
+            "temperature": self.temperature,
+            "kl_coeff": self.kl_coeff,
+            "max_new_tokens": self.max_new_tokens,
+            "top_p": self.top_p,
+            "repetition_penalty": self.repetition_penalty,
+            "num_train_epochs": self.num_train_epochs,
+            "warmup_steps": self.warmup_steps,
+            "logging_steps": self.logging_steps,
+            "save_steps": self.save_steps,
+            "optim": self.optim,
+            "format_weight": self.format_weight,
+            "tsc_weight": self.tsc_weight,
+            "max_workers": self.max_workers,
+            "extend_seconds": self.extend_seconds,
+            "dataset_path": self.dataset_path,
+            "output_dir": self.output_dir,
+            "use_wandb": self.use_wandb,
+            "wandb_project": self.wandb_project,
+            "wandb_run_name": self.wandb_run_name,
+            "lora_rank": self.lora_rank,
+            "gradient_checkpointing": self.gradient_checkpointing,
+            "seed": self.seed,
+        }
+
+
+def load_config(path: str) -> GRPOTrainingConfig:
+    """
+    便捷函数：加载GRPO训练配置
+
+    Args:
+        path: YAML配置文件路径
+
+    Returns:
+        GRPOTrainingConfig实例
+    """
+    return GRPOTrainingConfig.from_yaml(path)
+

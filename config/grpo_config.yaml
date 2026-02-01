@@ -1,0 +1,97 @@
+# GRPO训练配置文件
+# 用于配置GRPO训练的超参数和路径
+
+# ============== 模型配置 ==============
+# SFT模型路径（GRPO训练的起点）
+model_path: /home/samuel/SCU_TSC/model/sft_model
+
+# 最大序列长度
+max_seq_length: 2048
+
+# ============== GRPO核心参数 ==============
+# 学习率
+learning_rate: 1.0e-5
+
+# 批次大小（每个GPU）
+batch_size: 2
+
+# 梯度累积步数
+gradient_accumulation_steps: 4
+
+# 每个prompt生成的候选response数量
+num_generations: 4
+
+# 生成温度参数
+temperature: 0.9
+
+# KL散度系数（用于防止策略偏离过远）
+kl_coeff: 0.1
+
+# ============== 生成控制参数 ==============
+# 最大生成token数
+max_new_tokens: 50
+
+# Top-p采样参数
+top_p: 0.9
+
+# 重复惩罚
+repetition_penalty: 1.0
+
+# ============== 训练参数 ==============
+# 训练轮数
+num_train_epochs: 3
+
+# 预热步数
+warmup_steps: 10
+
+# 日志记录间隔
+logging_steps: 5
+
+# 模型保存间隔
+save_steps: 50
+
+# 优化器
+optim: adamw_8bit
+
+# ============== Reward权重 ==============
+# 格式检查权重（预留，01-04实现）
+format_weight: 1.0
+
+# TSC reward权重（预留，01-03实现）
+tsc_weight: 1.0
+
+# ============== SUMO仿真参数 ==============
+# 最大并行工作进程数（预留，01-03实现）
+max_workers: 4
+
+# 每次延长的秒数（预留，01-03实现）
+extend_seconds: 5
+
+# ============== 数据路径 ==============
+# GRPO数据集路径
+# 可以是单个文件或目录（目录时处理所有grpo_dataset.json）
+dataset_path: /home/samuel/SCU_TSC/data/grpo_datasets
+
+# ============== 输出路径 ==============
+# 模型输出目录
+output_dir: /home/samuel/SCU_TSC/model/grpo_model
+
+# ============== 日志配置 ==============
+# 是否使用wandb记录日志
+use_wandb: false
+
+# Wandb项目名称
+wandb_project: scu-tsc-grpo
+
+# Wandb运行名称
+wandb_run_name: null
+
+# ============== 高级参数 ==============
+# LoRA秩（如果需要在SFT模型基础上继续训练LoRA）
+lora_rank: 32
+
+# 是否使用梯度检查点
+gradient_checkpointing: true
+
+# 随机种子
+seed: 3407
