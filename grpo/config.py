@@ -125,6 +125,22 @@ class FormatRewardConfig:
 
 
 @dataclass
+class SUMOConfig:
+    """SUMO仿真配置"""
+    max_workers: int = 4
+    port_range: List[int] = field(default_factory=lambda: [10000, 60000])
+    extend_seconds: int = 5
+    reward_scale: float = 10.0
+
+
+@dataclass
+class RewardChainConfig:
+    """Reward函数链配置"""
+    format_weight: float = 1.0
+    tsc_weight: float = 1.0
+
+
+@dataclass
 class GRPOTrainingConfig:
     """GRPO训练配置"""
 
@@ -152,19 +168,6 @@ class GRPOTrainingConfig:
     save_steps: int = 50
     optim: str = "adamw_8bit"
 
-    # ============== Reward权重 ==============
-    format_weight: float = 1.0
-    tsc_weight: float = 1.0
-
-    # ============== Format Reward配置 ==============
-    format_reward: FormatRewardConfig = field(default_factory=FormatRewardConfig)
-
-    # ============== SUMO仿真参数 ==============
-    max_workers: int = 4
-    extend_seconds: int = 5
-    port_range: List[int] = field(default_factory=lambda: [10000, 60000])
-    reward_scale: float = 10.0
-
     # ============== 数据路径 ==============
     dataset_path: str = "/home/samuel/SCU_TSC/data/grpo_datasets"
 
@@ -180,6 +183,11 @@ class GRPOTrainingConfig:
     lora_rank: int = 32
     gradient_checkpointing: bool = True
     seed: int = 3407
+
+    # ============== 嵌套配置 ==============
+    reward: RewardChainConfig = field(default_factory=RewardChainConfig)
+    format_reward: FormatRewardConfig = field(default_factory=FormatRewardConfig)
+    sumo: SUMOConfig = field(default_factory=SUMOConfig)
 
     def __post_init__(self):
         """参数验证"""
@@ -223,13 +231,17 @@ class GRPOTrainingConfig:
         if "wandb_run_name" in data and data["wandb_run_name"] == "null":
             data["wandb_run_name"] = None
 
-        # 处理嵌套的format_reward配置
-        if "format_reward" in data:
-            format_reward_data = data.pop("format_reward")
-            format_reward_config = FormatRewardConfig(**format_reward_data)
-            data["format_reward"] = format_reward_config
+        # 处理嵌套配置
+        reward_data = data.pop('reward', {})
+        format_data = data.pop('format_reward', {})
+        sumo_data = data.pop('sumo', {})
 
-        return cls(**data)
+        return cls(
+            reward=RewardChainConfig(**reward_data),
+            format_reward=FormatRewardConfig(**format_data),
+            sumo=SUMOConfig(**sumo_data),
+            **data
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -255,12 +267,6 @@ class GRPOTrainingConfig:
             "logging_steps": self.logging_steps,
             "save_steps": self.save_steps,
             "optim": self.optim,
-            "format_weight": self.format_weight,
-            "tsc_weight": self.tsc_weight,
-            "max_workers": self.max_workers,
-            "extend_seconds": self.extend_seconds,
-            "port_range": self.port_range,
-            "reward_scale": self.reward_scale,
             "dataset_path": self.dataset_path,
             "output_dir": self.output_dir,
             "use_wandb": self.use_wandb,
@@ -269,6 +275,22 @@ class GRPOTrainingConfig:
             "lora_rank": self.lora_rank,
             "gradient_checkpointing": self.gradient_checkpointing,
             "seed": self.seed,
+            "reward": {
+                "format_weight": self.reward.format_weight,
+                "tsc_weight": self.reward.tsc_weight,
+            },
+            "format_reward": {
+                "strict": self.format_reward.strict,
+                "partial": self.format_reward.partial,
+                "invalid": self.format_reward.invalid,
+                "extract_regex": self.format_reward.extract_regex,
+            },
+            "sumo": {
+                "max_workers": self.sumo.max_workers,
+                "port_range": self.sumo.port_range,
+                "extend_seconds": self.sumo.extend_seconds,
+                "reward_scale": self.sumo.reward_scale,
+            },
         }
 
 
