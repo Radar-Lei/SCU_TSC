@@ -12,6 +12,7 @@ SUMO仿真接口封装
 import os
 import sys
 import random
+import socket
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
@@ -39,6 +40,31 @@ try:
     from traci.exceptions import TraCIException
 except ImportError:
     sys.exit("错误: 无法导入 traci。请检查 SUMO 是否安装或运行 'pip install traci'")
+
+
+def find_available_port(start: int = 10000, end: int = 60000, max_attempts: int = 100) -> Optional[int]:
+    """
+    查找可用端口
+
+    尝试绑定端口来检测是否可用。
+
+    Args:
+        start: 起始端口号
+        end: 结束端口号
+        max_attempts: 最大尝试次数
+
+    Returns:
+        可用端口号，失败返回None
+    """
+    for _ in range(max_attempts):
+        port = random.randint(start, end)
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('127.0.0.1', port))
+                return port
+        except OSError:
+            continue
+    return None
 
 
 @dataclass
@@ -96,10 +122,10 @@ class SUMOInterface:
     def start(self, warmup_steps: int = 0) -> bool:
         """
         启动SUMO仿真
-        
+
         Args:
             warmup_steps: 预热步数
-            
+
         Returns:
             是否启动成功
         """
@@ -107,11 +133,11 @@ class SUMOInterface:
             # 关闭已有连接
             if self.connected:
                 self.close()
-            
+
             # 查找SUMO可执行文件
             binary_name = "sumo-gui" if self.gui else "sumo"
             sumo_binary = self._find_sumo_binary(binary_name)
-            
+
             # 构建启动命令
             sumo_cmd = [
                 sumo_binary,
@@ -122,37 +148,44 @@ class SUMOInterface:
                 "--no-step-log",
                 "--duration-log.disable", "true",
             ]
-            
+
             # 启动SUMO（带重试）
             max_retries = 10 if self.port is None else 3
             for attempt in range(max_retries):
                 try:
-                    port = self.port if self.port else random.randint(10000, 60000)
+                    # 如果端口未指定，使用find_available_port查找
+                    port = self.port
+                    if port is None:
+                        port = find_available_port()
+                        if port is None:
+                            print("无法找到可用端口")
+                            return False
+
                     if self.verbose:
                         print(f"启动SUMO，端口: {port} (尝试 {attempt+1}/{max_retries})")
-                    
+
                     traci.start(sumo_cmd, port=port)
                     self.connected = True
-                    
+
                     # 执行预热
                     for _ in range(warmup_steps):
                         traci.simulationStep()
-                    
+
                     if self.verbose:
                         print(f"SUMO启动成功，已预热 {warmup_steps} 步")
                     return True
-                    
+
                 except Exception as e:
                     if attempt == max_retries - 1:
                         raise e
                     import time
                     time.sleep(random.random() * 0.5)
-                    
+
         except Exception as e:
             print(f"启动SUMO失败: {e}")
             self.connected = False
             return False
-        
+
         return False
     
     def _find_sumo_binary(self, binary_name: str) -> str:
@@ -177,6 +210,21 @@ class SUMOInterface:
             pass
         finally:
             self.connected = False
+
+    def start_from_state(self, state_file: str, port: Optional[int] = None) -> bool:
+        """
+        从状态文件恢复并启动仿真
+
+        Args:
+            state_file: 状态文件路径
+            port: TraCI端口（None则使用实例的port或随机选择）
+
+        Returns:
+            是否启动成功
+        """
+        if not self.start(port=port):
+            return False
+        return self.load_state(state_file)
     
     def step(self) -> bool:
         """
