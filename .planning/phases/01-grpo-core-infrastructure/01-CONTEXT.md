@@ -45,11 +45,23 @@
   - 在配置文件中设置target_format_accuracy和min_format_weight参数
 - **加权组合**：final_reward = format_weight × format_reward + tsc_weight × tsc_reward
 
+### TSC Reward函数设计（分阶段实现）
+- **Phase 1简化版本**：
+  - 统计所有车道的排队车辆总数
+  - 计算变化：`delta = 排队数_after - 排队数_before`
+  - 基础reward = `-delta`（改善为正，恶化为负）
+  - **归一化到[-1, 1]**，与format reward的scale对齐（format reward为±1/-0.5/-10）
+- **Phase 2改进方向**：
+  - 实现Max Pressure baseline算法
+  - 将reward改进为：`reward = 模型决策改善 - baseline决策改善`
+  - 这样可以奖励优于baseline的决策，惩罚差于baseline的决策
+
 ### Claude's Discretion
 - SUMO仿真的具体启动参数和命令行选项
 - Python多进程的具体实现方式（Process/Pool/ProcessPoolExecutor）
 - Format验证的具体解析逻辑（JSON schema定义、字段名等）
-- TSC reward的具体计算公式（如何衡量排队车辆数变化）
+- 排队数归一化的具体算法（如何处理边界值、异常值）
+- 车道排队数的统计方法（使用TraCI的哪些API）
 
 </decisions>
 
@@ -60,6 +72,8 @@
 - Format奖励采用软约束机制：即使不完全遵守格式，只要能提取有效决策就继续计算TSC reward
 - 动态权重调整确保训练早期关注format正确性，后期更关注TSC性能
 - 端口预检查机制避免SUMO启动失败影响整个batch
+- **分阶段实现策略**：Phase 1使用简化的tsc_reward_fn（基于排队数变化），快速建立训练流程；Phase 2集成Max Pressure改进reward设计
+- **Reward scale对齐**：tsc_reward归一化到[-1, 1]，与format reward的±1对齐，确保两者在训练中有效平衡
 
 </specifics>
 
