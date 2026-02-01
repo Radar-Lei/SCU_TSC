@@ -12,7 +12,7 @@
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: GRPO训练核心基础设施** - 建立GRPO训练脚本和reward函数框架
+- [x] **Phase 1: GRPO训练核心基础设施** - 建立GRPO训练脚本和reward函数框架
 - [ ] **Phase 2: Max Pressure算法和配置管理** - 实现baseline算法和配置系统
 - [ ] **Phase 3: 训练流程集成** - 完善端到端训练流程和数据验证
 - [ ] **Phase 4: 测试、验证和完善** - 通过单元测试和集成测试确保系统稳定性
@@ -34,10 +34,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 4 plans
 
 Plans:
-- [ ] 01-01: 创建GRPO训练脚本框架（配置文件、数据加载、GRPOTrainer集成）
-- [ ] 01-02: 实现format_reward_fn（三级评分：严格+1、部分-0.5、完全不遵守-10）
-- [ ] 01-03: 实现tsc_reward_fn和并行SUMO仿真架构（多进程、随机端口、错误处理）
-- [ ] 01-04: 实现reward函数链，组合format和tsc rewards
+- [x] 01-01: 创建GRPO训练脚本框架（配置文件、数据加载、GRPOTrainer集成）
+- [x] 01-02: 实现format_reward_fn（三级评分：严格+1、部分-0.5、完全不遵守-10）
+- [x] 01-03: 实现tsc_reward_fn和并行SUMO仿真架构（多进程、随机端口、错误处理）
+- [x] 01-04: 实现reward函数链，组合format和tsc rewards
 
 ### Phase 2: Max Pressure算法和配置管理
 **Goal**: 实现Max Pressure baseline算法用于reward计算，建立中央配置管理系统
@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. GRPO训练核心基础设施 | 0/4 | Not started | - |
+| 1. GRPO训练核心基础设施 | 4/4 | ✓ Complete | 2025-02-02 |
 | 2. Max Pressure算法和配置管理 | 0/3 | Not started | - |
 | 3. 训练流程集成 | 0/3 | Not started | - |
 | 4. 测试、验证和完善 | 0/2 | Not started | - |

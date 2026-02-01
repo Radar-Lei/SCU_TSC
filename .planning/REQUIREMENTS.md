@@ -7,34 +7,34 @@
 
 ### GRPO训练核心
 
-- [ ] **GRPO-01**: 实现完整的GRPO训练脚本
+- [x] **GRPO-01**: 实现完整的GRPO训练脚本
   - 支持从SFT训练好的模型继续训练
   - 集成Unsloth的FastLanguageModel和TRL的GRPOTrainer
   - 支持配置文件和命令行参数管理超参数
   - 实现训练过程中的检查点保存和恢复
   - 记录训练日志（loss、reward、KL散度等）
 
-- [ ] **GRPO-02**: 实现reward函数链
+- [x] **GRPO-02**: 实现reward函数链
   - 支持多个reward函数的组合
   - format_reward_fn：检查输出格式正确性
-  - tsc_reward_fn：基于Max Pressure算法评估决策质量
+  - tsc_reward_fn：基于SUMO仿真评估决策质量
   - reward权重可配置
 
-- [ ] **GRPO-03**: 实现format_reward_fn
+- [x] **GRPO-03**: 实现format_reward_fn
   - 验证输出是否为有效JSON
   - 验证JSON结构为 `{"extend": "yes/no"}`
   - 允许合理的空格和大小写变体
-  - 格式错误给予负奖励（如-2.0）
-  - 格式正确给予正奖励（如+1.0）
+  - 格式错误给予负奖励（三级评分：严格+1.0、部分-0.5、无效-10.0）
+  - 格式正确给予正奖励
 
-- [ ] **GRPO-04**: 实现tsc_reward_fn
-  - 实现Max Pressure算法（简单启发式baseline）
+- [x] **GRPO-04**: 实现tsc_reward_fn
+  - 基于SUMO仿真的what-if分析评估决策质量
   - 从保存的SUMO状态文件恢复仿真
   - 根据模型决策推进仿真：
     - 延长（yes）：当前相位延长N秒
     - 切换（no）：切换到下一相位并推进N秒
-  - 计算推进后的排队车辆数
-  - 根据与Max Pressure决策的一致性和排队数变化给予连续奖励
+  - 计算推进后的排队车辆数变化
+  - 使用tanh归一化reward到[-1,1]
 
 ### Max Pressure算法
 
@@ -105,10 +105,10 @@ Deferred to future release.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GRPO-01 | Phase 1 | Pending |
-| GRPO-02 | Phase 1 | Pending |
-| GRPO-03 | Phase 1 | Pending |
-| GRPO-04 | Phase 1 | Pending |
+| GRPO-01 | Phase 1 | Complete |
+| GRPO-02 | Phase 1 | Complete |
+| GRPO-03 | Phase 1 | Complete |
+| GRPO-04 | Phase 1 | Complete |
 | MAXP-01 | Phase 2 | Pending |
 | CONFIG-01 | Phase 2 | Pending |
 | CONFIG-02 | Phase 2 | Pending |
@@ -124,4 +124,4 @@ Deferred to future release.
 
 ---
 *Requirements defined: 2025-02-02*
-*Last updated: 2025-02-02 after initial definition*
+*Last updated: 2025-02-02 after Phase 1 completion*
