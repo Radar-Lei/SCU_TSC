@@ -60,6 +60,14 @@ format_weight: 1.0
 # TSC reward权重（预留，01-03实现）
 tsc_weight: 1.0
 
+# ============== Format Reward配置 ==============
+# format_reward_fn的三级评分参数
+format_reward:
+  strict: 1.0          # 严格格式奖励
+  partial: -0.5        # 部分遵守格式惩罚
+  invalid: -10.0       # 完全不遵守格式惩罚
+  extract_regex: '\{["\s]*extend["\s]*:\s*["\s]*(yes|no)["\s]*(?:,|\})'
+
 # ============== SUMO仿真参数 ==============
 # 最大并行工作进程数（预留，01-03实现）
 max_workers: 4

@@ -115,6 +115,16 @@ SYSTEM_PROMPT = """你是交通信号控制优化专家。
 
 
 @dataclass
+class FormatRewardConfig:
+    """Format Reward配置"""
+
+    strict: float = 1.0
+    partial: float = -0.5
+    invalid: float = -10.0
+    extract_regex: str = r'\{["\s]*extend["\s]*:\s*["\s]*(yes|no)["\s]*(?:,|\})'
+
+
+@dataclass
 class GRPOTrainingConfig:
     """GRPO训练配置"""
 
@@ -145,6 +155,9 @@ class GRPOTrainingConfig:
     # ============== Reward权重 ==============
     format_weight: float = 1.0
     tsc_weight: float = 1.0
+
+    # ============== Format Reward配置 ==============
+    format_reward: FormatRewardConfig = field(default_factory=FormatRewardConfig)
 
     # ============== SUMO仿真参数 ==============
     max_workers: int = 4
@@ -207,6 +220,12 @@ class GRPOTrainingConfig:
         # 处理wandb_run_name为None的情况
         if "wandb_run_name" in data and data["wandb_run_name"] == "null":
             data["wandb_run_name"] = None
+
+        # 处理嵌套的format_reward配置
+        if "format_reward" in data:
+            format_reward_data = data.pop("format_reward")
+            format_reward_config = FormatRewardConfig(**format_reward_data)
+            data["format_reward"] = format_reward_config
 
         return cls(**data)
 
