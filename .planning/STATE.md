@@ -10,30 +10,30 @@ See: .planning/PROJECT.md (updated 2025-02-02)
 ## Current Position
 
 Phase: 1 of 4 (GRPO训练核心基础设施)
-Plan: 3 of 4 in current phase
-Status: In progress
-Last activity: 2026-02-02 — Completed 01-03: SUMO Reward计算和并行仿真架构
+Plan: 4 of 4 in current phase
+Status: Phase complete
+Last activity: 2026-02-02 — Completed 01-04: Reward函数链与GRPO训练集成
 
-Progress: [███░░░░░░░] 75%
+Progress: [████████░░░] 100% (Phase 1 complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 7m 05s
-- Total execution time: 21m 15s
+- Total plans completed: 4
+- Average duration: 7m 48s
+- Total execution time: 31m 12s
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. GRPO训练核心基础设施 | 3 | 4 | 7m 05s |
+| 1. GRPO训练核心基础设施 | 4 | 4 | 7m 48s |
 | 2. Max Pressure算法和配置管理 | 0 | 0 | - |
 | 3. 训练流程集成 | 0 | 0 | - |
 | 4. 测试、验证和完善 | 0 | 0 | - |
 
 **Recent Trend:**
-- Last 5 plans: 7m 05s
+- Last 5 plans: 7m 48s
 - Trend: On track
 
 *Updated after each plan completion*
@@ -61,7 +61,13 @@ Recent decisions affecting current work:
 - 使用tanh(delta/scale)归一化reward到[-1,1]，scale=10.0
 - 并行计算使用multiprocessing.Pool，worker函数必须是模块级函数
 - 端口检查通过socket.bind()测试，随机端口范围10000-60000
-- 任何SUMO进程失败时整个batch失败（fast-fail策略）
+- 任何SUMO进程失败时整个batch失败（fast-fail策略)
+
+**From 01-04:**
+- Early-return优化：format完全无效时跳过TSC仿真计算，节省大量时间
+- 可配置的reward权重：format_weight和tsc_weight允许平衡格式正确性和TSC性能
+- 批量处理优化：只对format有效（strict或partial）的样本运行TSC仿真
+- Reward统计信息：每次计算后打印format准确率和平均reward，便于训练监控
 
 ### Pending Todos
 
@@ -78,5 +84,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 01-03-PLAN.md
+Stopped at: Completed 01-04-PLAN.md (Phase 1 complete)
 Resume file: None
