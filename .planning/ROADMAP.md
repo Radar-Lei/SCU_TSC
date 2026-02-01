@@ -24,17 +24,20 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Depends on**: 无（已有SFT训练脚本和数据生成器）
 **Requirements**: GRPO-01, GRPO-02, GRPO-03, GRPO-04
 **Success Criteria** (what must be TRUE):
-  1. 运行 `python grpo/training.py --config config.yaml` 启动GRPO训练
-  2. 训练日志显示reward值随训练步数变化
-  3. format_reward_fn对JSON格式正确的输出给予正奖励，错误格式给予负奖励
-  4. tsc_reward_fn能够从保存的SUMO状态文件恢复仿真并推进N秒，支持多进程并行计算reward
+  1. 运行 `python grpo/training.py --config config/grpo_config.yaml` 启动GRPO训练
+  2. 训练脚本能够加载SFT模型作为起点
+  3. format_reward_fn正确实现三级评分（±1/-0.5/-10）
+  4. tsc_reward_fn基于SUMO仿真计算排队数变化，归一化到[-1,1]
+  5. 并行SUMO仿真架构工作正常（多进程、随机端口分配、错误处理）
+  6. Reward函数链正确组合format和tsc rewards，权重可配置
+  7. 训练日志显示reward统计信息
 **Plans**: 4 plans
 
 Plans:
-- [ ] 01-01: 创建GRPO训练脚本框架，集成Unsloth和TRL的GRPOTrainer
-- [ ] 01-02: 实现format_reward_fn，验证JSON格式和结构正确性
-- [ ] 01-03: 实现tsc_reward_fn框架，支持从SUMO状态文件恢复和推进仿真，使用multiprocessing实现并行SUMO仿真（动态端口分配）
-- [ ] 01-04: 实现reward函数链，支持多个reward函数的组合和权重配置
+- [ ] 01-01: 创建GRPO训练脚本框架（配置文件、数据加载、GRPOTrainer集成）
+- [ ] 01-02: 实现format_reward_fn（三级评分：严格+1、部分-0.5、完全不遵守-10）
+- [ ] 01-03: 实现tsc_reward_fn和并行SUMO仿真架构（多进程、随机端口、错误处理）
+- [ ] 01-04: 实现reward函数链，组合format和tsc rewards
 
 ### Phase 2: Max Pressure算法和配置管理
 **Goal**: 实现Max Pressure baseline算法用于reward计算，建立中央配置管理系统
