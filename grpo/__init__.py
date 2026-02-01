@@ -9,6 +9,7 @@ from .config import (
     load_config,
 )
 from .training import train_grpo, load_grpo_dataset
+from .reward import format_reward_fn, extract_decision, FormatResult
 
 __all__ = [
     # 数据集生成相关
@@ -20,4 +21,8 @@ __all__ = [
     'load_config',
     'train_grpo',
     'load_grpo_dataset',
+    # Reward函数
+    'format_reward_fn',
+    'extract_decision',
+    'FormatResult',
 ]
