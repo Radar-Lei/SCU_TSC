@@ -227,6 +227,39 @@ def find_sumocfg(scenario_dir: str) -> Optional[str]:
     return None
 
 
+def calculate_tsc_reward_worker(
+    prompt: str,
+    output: str,
+    state_file: str,
+    config_dict: dict
+) -> TSCResult:
+    """
+    Worker函数，在单独进程中执行
+
+    Args:
+        prompt: 输入prompt
+        output: 模型输出
+        state_file: 状态文件路径
+        config_dict: 配置字典
+
+    Returns:
+        TSCResult对象
+    """
+    # 重建配置对象
+    config = SimpleNamespace(**config_dict)
+    decision = extract_decision_from_output(output)
+    if decision is None:
+        return TSCResult(
+            reward=0.0,
+            queue_before=0,
+            queue_after=0,
+            delta=0,
+            success=False,
+            error="Cannot extract decision from output"
+        )
+    return calculate_tsc_reward_single(state_file, prompt, decision, config)
+
+
 def tsc_reward_fn(
     prompts: List[str],
     outputs: List[str],
@@ -265,3 +298,81 @@ def tsc_reward_fn(
             rewards.append(0.0)
 
     return rewards
+
+
+class ParallelSUMORewardCalculator:
+    """
+    并行SUMO reward计算器
+
+    使用多进程并行计算多个样本的TSC reward
+    """
+
+    def __init__(self, max_workers: int = 4):
+        """
+        初始化并行计算器
+
+        Args:
+            max_workers: 最大并行进程数
+        """
+        self.max_workers = max_workers
+
+    def calculate_batch(
+        self,
+        prompts: List[str],
+        outputs: List[str],
+        state_files: List[str],
+        config: Any
+    ) -> List[float]:
+        """
+        批量计算TSC reward
+
+        Args:
+            prompts: 输入prompt列表
+            outputs: 模型输出列表
+            state_files: 状态文件路径列表
+            config: 配置对象
+
+        Returns:
+            reward列表
+
+        Raises:
+            RuntimeError: 任何SUMO进程失败时抛出
+        """
+        from multiprocessing import Pool
+
+        # 准备参数
+        tasks = list(zip(prompts, outputs, state_files))
+        config_dict = self._config_to_dict(config)
+
+        # 使用进程池并行计算
+        with Pool(processes=self.max_workers) as pool:
+            results = pool.starmap(
+                calculate_tsc_reward_worker,
+                [(p, o, s, config_dict) for p, o, s in tasks]
+            )
+
+        # 检查结果
+        rewards = []
+        for result in results:
+            if not result.success:
+                raise RuntimeError(
+                    f"SUMO reward calculation failed: {result.error}"
+                )
+            rewards.append(result.reward)
+
+        return rewards
+
+    @staticmethod
+    def _config_to_dict(config: Any) -> dict:
+        """
+        将配置对象转换为字典
+
+        Args:
+            config: 配置对象
+
+        Returns:
+            配置字典
+        """
+        if hasattr(config, '__dict__'):
+            return config.__dict__
+        return config
