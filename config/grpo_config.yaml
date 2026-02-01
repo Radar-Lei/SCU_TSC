@@ -69,11 +69,17 @@ format_reward:
   extract_regex: '\{["\s]*extend["\s]*:\s*["\s]*(yes|no)["\s]*(?:,|\})'
 
 # ============== SUMO仿真参数 ==============
-# 最大并行工作进程数（预留，01-03实现）
+# 最大并行工作进程数
 max_workers: 4
 
-# 每次延长的秒数（预留，01-03实现）
+# 每次延长的秒数
 extend_seconds: 5
+
+# SUMO仿真端口范围
+port_range: [10000, 60000]
+
+# Reward归一化scale参数
+reward_scale: 10.0
 
 # ============== 数据路径 ==============
 # GRPO数据集路径

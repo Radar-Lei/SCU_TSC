@@ -10,6 +10,7 @@ from .config import (
 )
 from .training import train_grpo, load_grpo_dataset
 from .reward import format_reward_fn, extract_decision, FormatResult
+from .sumo_reward import tsc_reward_fn, calculate_tsc_reward_single, ParallelSUMORewardCalculator, TSCResult
 
 __all__ = [
     # 数据集生成相关
@@ -25,4 +26,9 @@ __all__ = [
     'format_reward_fn',
     'extract_decision',
     'FormatResult',
+    # SUMO Reward函数
+    'tsc_reward_fn',
+    'calculate_tsc_reward_single',
+    'ParallelSUMORewardCalculator',
+    'TSCResult',
 ]

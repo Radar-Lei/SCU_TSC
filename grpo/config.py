@@ -162,6 +162,8 @@ class GRPOTrainingConfig:
     # ============== SUMO仿真参数 ==============
     max_workers: int = 4
     extend_seconds: int = 5
+    port_range: List[int] = field(default_factory=lambda: [10000, 60000])
+    reward_scale: float = 10.0
 
     # ============== 数据路径 ==============
     dataset_path: str = "/home/samuel/SCU_TSC/data/grpo_datasets"
@@ -257,6 +259,8 @@ class GRPOTrainingConfig:
             "tsc_weight": self.tsc_weight,
             "max_workers": self.max_workers,
             "extend_seconds": self.extend_seconds,
+            "port_range": self.port_range,
+            "reward_scale": self.reward_scale,
             "dataset_path": self.dataset_path,
             "output_dir": self.output_dir,
             "use_wandb": self.use_wandb,
