@@ -2,12 +2,12 @@
 """
 GRPO Reward函数模块
 
-包含format_reward_fn和相关辅助函数，用于验证模型输出格式并计算奖励。
+包含format_reward_fn、reward函数链和相关辅助函数，用于验证模型输出格式并计算奖励。
 """
 
 import json
 import re
-from typing import Optional, List
+from typing import Optional, List, Tuple, Callable, Dict, Any
 from dataclasses import dataclass
 
 
@@ -18,6 +18,32 @@ class FormatResult:
     is_strict: bool
     is_partial: bool
     extracted_decision: Optional[str]  # "yes", "no", or None
+
+
+@dataclass
+class RewardStats:
+    """Reward统计信息"""
+    total_count: int
+    strict_format_count: int
+    partial_format_count: int
+    invalid_format_count: int
+    avg_format_reward: float
+    avg_tsc_reward: float
+    avg_final_reward: float
+    format_accuracy: float  # (strict + partial) / total
+
+
+@dataclass
+class RewardChainConfig:
+    """Reward函数链配置"""
+    format_weight: float = 1.0
+    tsc_weight: float = 1.0
+    # Format reward评分
+    format_strict: float = 1.0
+    format_partial: float = -0.5
+    format_invalid: float = -10.0
+    # 正则表达式
+    extract_regex: str = r'\{["\s]*extend["\s]*:\s*["\s]*(yes|no)["\s]*\}'
 
 
 def extract_decision(text: str, regex: str) -> Optional[str]:
@@ -127,3 +153,162 @@ def batch_format_reward(outputs: List[str], **kwargs) -> List[float]:
         result = format_reward_fn(output, **kwargs)
         rewards.append(result.reward)
     return rewards
+
+
+def compute_reward(
+    prompt: str,
+    output: str,
+    state_file: str,
+    chain_config: RewardChainConfig,
+    sumo_config: Any,
+    tsc_reward_fn: Callable = None
+) -> Tuple[float, Dict[str, Any]]:
+    """
+    计算单个样本的reward
+
+    Args:
+        prompt: 输入prompt
+        output: 模型输出
+        state_file: SUMO状态文件路径
+        chain_config: Reward函数链配置
+        sumo_config: SUMO配置
+        tsc_reward_fn: TSC reward函数（可选，用于测试）
+
+    Returns:
+        (final_reward, info_dict)
+    """
+    # 1. 计算format reward
+    format_result = format_reward_fn(
+        output,
+        regex=chain_config.extract_regex,
+        strict_reward=chain_config.format_strict,
+        partial_reward=chain_config.format_partial,
+        invalid_reward=chain_config.format_invalid
+    )
+
+    # 2. 如果完全不遵守format，直接返回
+    if not format_result.is_partial and not format_result.is_strict:
+        return format_result.reward, {
+            "format_reward": format_result.reward,
+            "tsc_reward": 0.0,
+            "reason": "invalid_format"
+        }
+
+    # 3. 计算TSC reward
+    if tsc_reward_fn is None:
+        from .sumo_reward import calculate_tsc_reward_single
+        tsc_reward_fn = calculate_tsc_reward_single
+
+    # 从output提取决策
+    decision = format_result.extracted_decision
+    if decision is None:
+        # 无法提取决策，返回format reward
+        return format_result.reward, {
+            "format_reward": format_result.reward,
+            "tsc_reward": 0.0,
+            "reason": "no_decision_extracted"
+        }
+
+    tsc_result = tsc_reward_fn(state_file, prompt, decision, sumo_config)
+    tsc_reward = tsc_result.reward if tsc_result.success else 0.0
+
+    # 4. 组合reward
+    final_reward = (
+        chain_config.format_weight * format_result.reward +
+        chain_config.tsc_weight * tsc_reward
+    )
+
+    return final_reward, {
+        "format_reward": format_result.reward,
+        "tsc_reward": tsc_reward,
+        "is_strict": format_result.is_strict,
+        "is_partial": format_result.is_partial,
+    }
+
+
+def batch_compute_reward(
+    prompts: List[str],
+    outputs: List[str],
+    state_files: List[str],
+    chain_config: RewardChainConfig,
+    sumo_config: Any
+) -> Tuple[List[float], RewardStats]:
+    """
+    批量计算reward（GRPOTrainer调用接口）
+
+    Args:
+        prompts: 输入prompt列表
+        outputs: 模型输出列表
+        state_files: 状态文件路径列表
+        chain_config: Reward函数链配置
+        sumo_config: SUMO配置
+
+    Returns:
+        (rewards列表, 统计信息)
+    """
+    from .sumo_reward import ParallelSUMORewardCalculator
+
+    # 先计算所有format reward
+    format_results = [
+        format_reward_fn(
+            output,
+            regex=chain_config.extract_regex,
+            strict_reward=chain_config.format_strict,
+            partial_reward=chain_config.format_partial,
+            invalid_reward=chain_config.format_invalid
+        )
+        for output in outputs
+    ]
+
+    # 筛选需要计算TSC的样本
+    needs_tsc_indices = [
+        i for i, r in enumerate(format_results)
+        if r.is_strict or r.is_partial
+    ]
+
+    # 批量计算TSC reward（使用并行）
+    tsc_rewards = [0.0] * len(outputs)
+    if needs_tsc_indices:
+        calculator = ParallelSUMORewardCalculator(max_workers=sumo_config.max_workers)
+
+        # 准备需要计算TSC的样本
+        tsc_prompts = [prompts[i] for i in needs_tsc_indices]
+        tsc_outputs = [outputs[i] for i in needs_tsc_indices]
+        tsc_state_files = [state_files[i] for i in needs_tsc_indices]
+
+        try:
+            tsc_results = calculator.calculate_batch(
+                prompts=tsc_prompts,
+                outputs=tsc_outputs,
+                state_files=tsc_state_files,
+                config=sumo_config
+            )
+            for idx, reward in zip(needs_tsc_indices, tsc_results):
+                tsc_rewards[idx] = reward
+        except RuntimeError as e:
+            # SUMO计算失败，所有TSC reward为0
+            print(f"Warning: TSC reward calculation failed: {e}")
+            print(f"Using format reward only for {len(needs_tsc_indices)} samples")
+
+    # 组合最终reward
+    final_rewards = []
+    for i, format_result in enumerate(format_results):
+        final_reward = (
+            chain_config.format_weight * format_result.reward +
+            chain_config.tsc_weight * tsc_rewards[i]
+        )
+        final_rewards.append(final_reward)
+
+    # 计算统计信息
+    stats = RewardStats(
+        total_count=len(outputs),
+        strict_format_count=sum(1 for r in format_results if r.is_strict),
+        partial_format_count=sum(1 for r in format_results if r.is_partial),
+        invalid_format_count=sum(1 for r in format_results if not r.is_strict and not r.is_partial),
+        avg_format_reward=sum(r.reward for r in format_results) / len(outputs),
+        avg_tsc_reward=sum(tsc_rewards) / len(outputs),
+        avg_final_reward=sum(final_rewards) / len(outputs),
+        format_accuracy=(sum(1 for r in format_results if r.is_strict or r.is_partial) / len(outputs))
+    )
+
+    return final_rewards, stats
