@@ -322,6 +322,23 @@ class GRPODatasetGenerator:
                     # 获取各相位排队数
                     phase_metrics = self.sumo.get_all_phases_queue(tl_id)
                     
+                    # === 基于有效相位比例的过滤逻辑 ===
+                    # 计算有值（非零）的相位占比，以此作为保留该条数据的概率
+                    total_phases = len(phase_metrics)
+                    if total_phases > 0:
+                        non_zero_phases = sum(1 for v in phase_metrics.values() if v > 0)
+                        keep_probability = non_zero_phases / total_phases
+                        
+                        # 根据概率决定是否保留
+                        if keep_probability == 0:
+                            # 所有相位都为0，不保留
+                            continue
+                        elif keep_probability < 1.0:
+                            # 部分相位有值，按概率保留
+                            if random.random() > keep_probability:
+                                continue
+                        # keep_probability == 1.0 时，100%保留
+                    
                     # 保存仿真状态
                     decision_counts[tl_id] += 1
                     state_filename = f"state_{tl_id}_{int(sim_time)}_{decision_counts[tl_id]}.xml"

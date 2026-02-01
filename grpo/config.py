@@ -1,11 +1,4 @@
-# grpo/config.py 第21-26行
-
-# 最小绿灯时间偏移范围 (秒)，用于增加数据多样性
-# 实际最小绿 = SUMO配置最小绿 + random.uniform(-min_green_offset_range, +min_green_offset_range)
-min_green_offset_range: float = 2.0
-
-# 最大绿灯时间偏移范围 (秒)
-max_green_offset_range: float = 5.0# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 GRPO数据集生成器配置模块
 
