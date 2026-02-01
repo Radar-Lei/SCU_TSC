@@ -16,10 +16,14 @@ import os
 import sys
 import json
 import argparse
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from grpo.reward import compute_reward, batch_compute_reward, RewardChainConfig, RewardStats
+from grpo.sumo_reward import ParallelSUMORewardCalculator
+from grpo.config import GRPOTrainingConfig
 
 
 def load_grpo_dataset(dataset_path: str):
@@ -74,6 +78,8 @@ def load_grpo_dataset(dataset_path: str):
             "id": item.get("id", ""),
             "scenario": item.get("scenario", ""),
             "junction_id": item.get("junction_id", ""),
+            # 保存state_file路径，用于reward计算
+            "state_file": item.get("state_file", ""),
             # 暂时不包含expert_decision，因为GRPO需要通过reward函数评估
         })
 
@@ -83,26 +89,70 @@ def load_grpo_dataset(dataset_path: str):
     return dataset
 
 
-def reward_function_placeholder(prompts: List[str], outputs: List[str], **kwargs) -> List[float]:
+def create_reward_function(
+    chain_config: RewardChainConfig,
+    sumo_config,
+    dataset
+) -> Callable:
     """
-    Reward函数占位符
+    创建GRPOTrainer使用的reward函数
 
-    在01-02和01-03中实现具体的reward逻辑：
-    - 01-02: 格式检查reward（JSON格式、extend字段）
-    - 01-03: TSC reward（SUMO仿真评估排队车辆数）
-
-    当前占位符返回固定值0.0，便于框架测试。
+    GRPOTrainer期望的签名: (prompts, outputs, **kwargs) -> List[float]
 
     Args:
-        prompts: prompt列表
-        outputs: 模型生成的response列表
-        **kwargs: 其他参数
+        chain_config: Reward函数链配置
+        sumo_config: SUMO配置
+        dataset: 数据集（用于获取state_files）
 
     Returns:
-        reward_scores: reward分数列表
+        reward函数
+    """
+    # 预加载state_files（按数据集顺序）
+    state_files = dataset["state_file"]
+
+    def reward_fn(prompts: List[str], outputs: List[str], **kwargs) -> List[float]:
+        """
+        GRPOTrainer调用的reward函数
+        """
+        # 确保prompts和state_files长度匹配
+        # 注意: GRPO可能对每个prompt生成多个output，需要正确对齐
+        n = len(outputs)
+        aligned_state_files = state_files[:n] if len(state_files) >= n else state_files
+
+        rewards, stats = batch_compute_reward(
+            prompts=prompts[:n],
+            outputs=outputs,
+            state_files=aligned_state_files,
+            chain_config=chain_config,
+            sumo_config=sumo_config
+        )
+
+        # 打印统计信息
+        print(f"\n{'='*50}")
+        print(f"Reward Statistics:")
+        print(f"  Total: {stats.total_count}")
+        print(f"  Format accuracy: {stats.format_accuracy:.1%}")
+        print(f"  Strict: {stats.strict_format_count}, Partial: {stats.partial_format_count}, Invalid: {stats.invalid_format_count}")
+        print(f"  Avg format reward: {stats.avg_format_reward:.3f}")
+        print(f"  Avg TSC reward: {stats.avg_tsc_reward:.3f}")
+        print(f"  Avg final reward: {stats.avg_final_reward:.3f}")
+        print(f"{'='*50}\n")
+
+        return rewards
+
+    return reward_fn
+
+
+def reward_function_placeholder(prompts: List[str], outputs: List[str], **kwargs) -> List[float]:
+    """
+    Reward函数占位符（已弃用）
+
+    在01-04中已实现完整的reward函数链，请使用create_reward_function创建reward函数。
+
+    此函数保留仅用于向后兼容。
     """
     print("警告: 使用占位符reward函数（返回固定0.0）")
-    print("      在01-02和01-03中将实现具体reward逻辑")
+    print("      请使用create_reward_function创建完整的reward函数链")
 
     # 返回固定值
     return [0.0] * len(outputs)
@@ -128,6 +178,8 @@ def train_grpo(config):
     print(f"温度: {config.temperature}")
     print(f"KL系数: {config.kl_coeff}")
     print(f"训练轮数: {config.num_train_epochs}")
+    print(f"Format权重: {config.format_weight}")
+    print(f"TSC权重: {config.tsc_weight}")
     print("=" * 60)
 
     # 导入依赖
@@ -162,6 +214,34 @@ def train_grpo(config):
     # 加载数据集
     print("\n正在加载数据集...")
     train_dataset = load_grpo_dataset(config.dataset_path)
+    print(f"加载了 {len(train_dataset)} 条训练数据")
+
+    # 创建reward函数链配置
+    print("\n正在配置reward函数链...")
+    from types import SimpleNamespace
+    reward_chain_config = RewardChainConfig(
+        format_weight=config.format_weight,
+        tsc_weight=config.tsc_weight,
+        format_strict=config.format_reward.strict,
+        format_partial=config.format_reward.partial,
+        format_invalid=config.format_reward.invalid,
+        extract_regex=config.format_reward.extract_regex
+    )
+
+    # 创建SUMO配置
+    sumo_config = SimpleNamespace(
+        max_workers=config.max_workers,
+        extend_seconds=config.extend_seconds,
+        reward_scale=config.reward_scale,
+        port_range=config.port_range
+    )
+
+    # 创建reward函数
+    reward_fn = create_reward_function(
+        chain_config=reward_chain_config,
+        sumo_config=sumo_config,
+        dataset=train_dataset
+    )
 
     # 配置GRPO训练参数
     print("正在配置GRPO训练参数...")
@@ -209,7 +289,7 @@ def train_grpo(config):
     print("\n正在创建GRPO训练器...")
     trainer = GRPOTrainer(
         model=model,
-        reward_funcs=reward_function_placeholder,
+        reward_funcs=reward_fn,  # 使用完整的reward函数链
         args=grpo_config,
         train_dataset=train_dataset,
     )
