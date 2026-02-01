@@ -10,30 +10,30 @@ See: .planning/PROJECT.md (updated 2025-02-02)
 ## Current Position
 
 Phase: 1 of 4 (GRPO训练核心基础设施)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: In progress
-Last activity: 2026-02-02 — Completed 01-02: Format Reward函数实现
+Last activity: 2026-02-02 — Completed 01-03: SUMO Reward计算和并行仿真架构
 
-Progress: [██░░░░░░░░] 50%
+Progress: [███░░░░░░░] 75%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 3m 42s
-- Total execution time: 7m 24s
+- Total plans completed: 3
+- Average duration: 7m 05s
+- Total execution time: 21m 15s
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. GRPO训练核心基础设施 | 2 | 4 | 3m 42s |
+| 1. GRPO训练核心基础设施 | 3 | 4 | 7m 05s |
 | 2. Max Pressure算法和配置管理 | 0 | 0 | - |
 | 3. 训练流程集成 | 0 | 0 | - |
 | 4. 测试、验证和完善 | 0 | 0 | - |
 
 **Recent Trend:**
-- Last 5 plans: 3m 42s
+- Last 5 plans: 7m 05s
 - Trend: On track
 
 *Updated after each plan completion*
@@ -57,6 +57,12 @@ Recent decisions affecting current work:
 - FormatResult提供详细的验证结果（is_strict、is_partial、extracted_decision）
 - format_reward_fn与配置系统完全集成
 
+**From 01-03:**
+- 使用tanh(delta/scale)归一化reward到[-1,1]，scale=10.0
+- 并行计算使用multiprocessing.Pool，worker函数必须是模块级函数
+- 端口检查通过socket.bind()测试，随机端口范围10000-60000
+- 任何SUMO进程失败时整个batch失败（fast-fail策略）
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -72,5 +78,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 01-02-PLAN.md
+Stopped at: Completed 01-03-PLAN.md
 Resume file: None
