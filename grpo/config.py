@@ -408,9 +408,12 @@ class SFTTrainingConfig:
     save_steps: int = 50
 
     # ============== 评估参数 ==============
-    eval_percent: float = 0.05
+    eval_percent: float = 0.05  # 0表示不使用验证集
     eval_limit: int = 100
-    eval_steps: int = 30
+    eval_steps: Optional[int] = 30  # None表示不评估
+    
+    # ============== 样本抽样 ==============
+    sft_sample_size: int = 0  # 训练样本数量，0表示使用全部数据
 
     def __post_init__(self):
         """参数验证"""
@@ -424,11 +427,15 @@ class SFTTrainingConfig:
         if self.lora_rank <= 0:
             raise ValueError(f"sft.lora_rank必须大于0，当前值: {self.lora_rank}")
 
-        if not (0 < self.eval_percent < 1):
-            raise ValueError(f"sft.eval_percent必须在(0, 1)范围内，当前值: {self.eval_percent}")
+        # eval_percent允许0（不使用验证集）但不能大于等于1
+        if not (0 <= self.eval_percent < 1):
+            raise ValueError(f"sft.eval_percent必须在[0, 1)范围内，当前值: {self.eval_percent}")
 
         if self.num_epochs <= 0:
             raise ValueError(f"sft.num_epochs必须大于0，当前值: {self.num_epochs}")
+        
+        if self.sft_sample_size < 0:
+            raise ValueError(f"sft.sft_sample_size必须非负，当前值: {self.sft_sample_size}")
 
 
 @dataclass

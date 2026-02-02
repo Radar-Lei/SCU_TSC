@@ -44,6 +44,7 @@ def load_grpo_dataset(dataset_path: str):
     """
     from datasets import Dataset
     import glob
+    from grpo.config import SYSTEM_PROMPT
 
     # 检查是文件还是目录
     if os.path.isfile(dataset_path):
@@ -67,18 +68,25 @@ def load_grpo_dataset(dataset_path: str):
     print(f"总共加载了 {len(all_data)} 条GRPO数据")
 
     # 转换为TRL GRPOTrainer期望的格式
-    # GRPOTrainer期望的数据格式：
-    # - prompt: messages格式或字符串
-    # - 其他可选字段
+    # GRPOTrainer期望：prompt是一个messages列表，格式为 [{"role": "system", "content": ...}, {"role": "user", "content": ...}]
     grpo_data = []
     for item in all_data:
-        # 获取prompt字符串
-        prompt = item.get("prompt", "")
-
-        # 转换为messages格式: [{"role": "user", "content": SYSTEM_PROMPT + prompt}]
-        # 这里先使用字符串格式，GRPOTrainer会自动处理
+        # 获取原始JSON prompt
+        raw_prompt = item.get("prompt", "")
+        
+        # 构建完整的 system prompt (包含JSON示例)
+        # 使用 replace 而不是 format，因为模板中包含其他花括号（如 {"extend": "yes/no"}）
+        full_system_prompt = SYSTEM_PROMPT.replace("{extend_decision_input_json}", raw_prompt)
+        
+        # 构建messages格式的prompt
+        # GRPOTrainer期望的格式: [{"role": "system", "content": ...}, {"role": "user", "content": ...}]
+        messages = [
+            {"role": "system", "content": full_system_prompt},
+            {"role": "user", "content": raw_prompt}
+        ]
+        
         grpo_data.append({
-            "prompt": prompt,
+            "prompt": messages,  # 使用messages格式
             "id": item.get("id", ""),
             "scenario": item.get("scenario", ""),
             "junction_id": item.get("junction_id", ""),
@@ -153,10 +161,43 @@ def create_reward_function(
             enable_baseline_tracking = False
             baseline_decisions = None
 
-    def reward_fn(prompts: List[str], outputs: List[str], **kwargs) -> List[float]:
+    def reward_fn(completions, prompts=None, **kwargs) -> List[float]:
         """
         GRPOTrainer调用的reward函数
+        
+        新版TRL的签名是 (completions, prompts=None, **kwargs)
+        - completions: 列表，每个元素是 messages 格式，如 [[{"role": "assistant", "content": "..."}], ...]
+        - prompts: 可选，prompts列表
         """
+        # 调试：打印 completions 的格式
+        if len(completions) > 0:
+            print(f"\n[DEBUG] completions type: {type(completions)}")
+            print(f"[DEBUG] completions length: {len(completions)}")
+            print(f"[DEBUG] completions[0] type: {type(completions[0])}")
+            print(f"[DEBUG] completions[0] value: {completions[0][:200] if isinstance(completions[0], str) else completions[0]}")
+            if len(completions) > 1:
+                print(f"[DEBUG] completions[1] type: {type(completions[1])}")
+                print(f"[DEBUG] completions[1] value: {completions[1][:200] if isinstance(completions[1], str) else completions[1]}")
+        
+        # 从 completions 中提取 outputs（模型生成的文本）
+        # completions 格式: [[{"role": "assistant", "content": "..."}], ...]
+        outputs = []
+        for completion in completions:
+            if isinstance(completion, list) and len(completion) > 0:
+                # messages 格式
+                if isinstance(completion[0], dict) and "content" in completion[0]:
+                    outputs.append(completion[0]["content"])
+                else:
+                    outputs.append(str(completion[0]))
+            elif isinstance(completion, str):
+                outputs.append(completion)
+            else:
+                outputs.append(str(completion))
+        
+        # 调试：打印提取后的 outputs
+        if len(outputs) > 0:
+            print(f"[DEBUG] outputs[0]: {outputs[0][:200] if len(outputs[0]) > 200 else outputs[0]}")
+        
         # 确保prompts和state_files长度匹配
         # 注意: GRPO可能对每个prompt生成多个output，需要正确对齐
         n = len(outputs)
@@ -167,8 +208,15 @@ def create_reward_function(
         aligned_min_green = min_green_list[:n] if len(min_green_list) >= n else min_green_list
         aligned_max_green = max_green_list[:n] if len(max_green_list) >= n else max_green_list
 
+        # 构建 prompts 列表（如果没有传入）
+        if prompts is None:
+            # 使用dataset中的prompt
+            prompts_to_use = dataset["prompt"][:n] if len(dataset["prompt"]) >= n else dataset["prompt"]
+        else:
+            prompts_to_use = prompts[:n] if len(prompts) >= n else prompts
+
         rewards, stats = batch_compute_reward(
-            prompts=prompts[:n],
+            prompts=prompts_to_use,
             outputs=outputs,
             state_files=aligned_state_files,
             chain_config=chain_config,
@@ -381,21 +429,20 @@ def train_grpo(
 
     # 创建TRL的GRPOConfig（注意区别于我们自己的GRPOTrainingConfig）
     grpo_config = GRPOConfig(
-        # 模型和生成参数
-        model_name=config.model_path,
-        learning_rate=config.learning_rate,
-        batch_size=config.batch_size,
+        # 训练批次参数
+        per_device_train_batch_size=config.batch_size,
         gradient_accumulation_steps=config.gradient_accumulation_steps,
+        learning_rate=config.learning_rate,
 
         # GRPO特定参数
         num_generations=config.num_generations,
         temperature=config.temperature,
-        max_new_tokens=config.max_new_tokens,
+        max_completion_length=config.max_new_tokens,
         top_p=config.top_p,
         repetition_penalty=config.repetition_penalty,
 
-        # KL散度控制
-        kl_coeff=config.kl_coeff,
+        # KL散度控制（beta参数）
+        beta=config.kl_coeff,
 
         # 训练参数
         num_train_epochs=config.num_train_epochs,
@@ -412,6 +459,9 @@ def train_grpo(
         seed=config.seed,
         report_to="wandb" if config.use_wandb else "none",
         save_total_limit=2,
+        
+        # 禁用移除未使用的列，确保reward计算可以访问state_file等元数据
+        remove_unused_columns=False,
     )
 
     # 设置wandb run名称

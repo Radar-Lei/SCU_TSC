@@ -4,32 +4,36 @@
 # ============== 训练配置 ==============
 training:
   # SFT训练参数
+  # 重要：SFT的目的是让模型学会输出格式，不是学习具体内容
+  # 使用少量样本 + 高学习率 + 多epoch = 快速学会格式
   sft:
     model_name: "unsloth/Qwen2.5-0.5B-Instruct"
     max_seq_length: 2048
-    lora_rank: 32
-    num_epochs: 3
-    batch_size: 2
-    gradient_accumulation_steps: 4
-    learning_rate: 1.0e-5  
-    max_steps: 300  # null表示不限制
+    lora_rank: 32  # 与参考notebook一致
+    num_epochs: 2  # 完整训练2个epoch
+    batch_size: 1  # 小batch size
+    gradient_accumulation_steps: 1
+    learning_rate: 2.0e-4  # 高学习率快速学习格式
+    max_steps: null  # 让模型完整训练，不限制步数
     logging_steps: 5
     save_steps: 50
-    eval_percent: 0.05  # 验证集比例
-    eval_limit: 300     # 验证集最大数量
-    eval_steps: 30
+    eval_percent: 0.0  # 不使用验证集，SFT只是学格式
+    eval_limit: 0
+    eval_steps: null
     warmup_steps: 5
     optim: "adamw_8bit"
-    weight_decay: 0.01  # 增加权重衰减以加强正则化
+    weight_decay: 0.001  # 低权重衰减
     lr_scheduler_type: "linear"
     seed: 3407
+    # 只使用少量样本学习格式（由sft_training.py中的sample_size控制）
+    sft_sample_size: 100  # 只抽样100条用于格式学习
 
   # GRPO训练参数
   grpo:
     model_path: "/home/samuel/SCU_TSC/model/sft_model"  # 从SFT模型继续
     max_seq_length: 2048
     lora_rank: 32
-    learning_rate: 1.0e-5
+    learning_rate: 5.0e-6
     batch_size: 2
     gradient_accumulation_steps: 4
     num_generations: 4

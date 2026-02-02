@@ -22,7 +22,7 @@ from typing import Optional
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def load_sft_dataset(dataset_path: str, eval_percent: float = 0.05, eval_limit: int = 100):
+def load_sft_dataset(dataset_path: str, eval_percent: float = 0.05, eval_limit: int = 100, sample_size: int = 0):
     """
     加载SFT数据集
 
@@ -30,6 +30,8 @@ def load_sft_dataset(dataset_path: str, eval_percent: float = 0.05, eval_limit: 
         dataset_path: 数据集JSON或JSONL文件路径
         eval_percent: 验证集比例 (默认 0.05 = 5%)
         eval_limit: 验证集最大数量 (默认 100)
+        sample_size: 训练样本数量，0表示使用全部 (默认 0)
+                     对于格式学习，建议使用少量样本（如100条）
 
     Returns:
         train_dataset: 训练集 HuggingFace Dataset 对象
@@ -38,6 +40,7 @@ def load_sft_dataset(dataset_path: str, eval_percent: float = 0.05, eval_limit: 
     from datasets import Dataset
     from sklearn.model_selection import train_test_split
     import numpy as np
+    import random
 
     if dataset_path.endswith('.jsonl'):
         with open(dataset_path, 'r', encoding='utf-8') as f:
@@ -46,10 +49,19 @@ def load_sft_dataset(dataset_path: str, eval_percent: float = 0.05, eval_limit: 
         with open(dataset_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
+    print(f"加载了 {len(data)} 条SFT数据")
+    
+    # 如果指定了样本大小，随机抽样
+    if sample_size > 0 and sample_size < len(data):
+        random.seed(3407)  # 固定随机种子确保可重复性
+        data = random.sample(data, sample_size)
+        print(f"随机抽样 {sample_size} 条用于格式学习")
+    
     dataset = Dataset.from_list(data)
-    print(f"加载了 {len(dataset)} 条SFT数据")
 
+    # 如果不使用验证集，直接返回全部数据作为训练集
     if eval_percent <= 0 or eval_percent >= 1:
+        print(f"使用全部 {len(dataset)} 条数据作为训练集（无验证集）")
         return dataset, None
 
     # 计算验证集大小
@@ -258,8 +270,13 @@ def train_sft(
     )
     
     # 加载数据集
+    # 获取样本大小配置
+    sample_size = 0
+    if config is not None and hasattr(config.sft, 'sft_sample_size'):
+        sample_size = config.sft.sft_sample_size or 0
+    
     print("\n正在加载数据集...")
-    train_dataset, eval_dataset = load_sft_dataset(dataset_path, eval_percent, eval_limit)
+    train_dataset, eval_dataset = load_sft_dataset(dataset_path, eval_percent, eval_limit, sample_size)
     
     # 格式化训练数据
     print("正在格式化训练数据...")
@@ -321,6 +338,85 @@ def train_sft(
     merged_dir = os.path.join(output_dir, "merged")
     print(f"正在保存合并后的模型到 {merged_dir}...")
     model.save_pretrained_merged(merged_dir, tokenizer, save_method="merged_16bit")
+    
+    # ============== 格式验证 ==============
+    print("\n" + "=" * 60)
+    print("SFT格式验证")
+    print("=" * 60)
+    
+    # 准备推理模式
+    FastLanguageModel.for_inference(model)
+    
+    # 加载原始数据获取测试样本
+    if dataset_path.endswith('.jsonl'):
+        with open(dataset_path, 'r', encoding='utf-8') as f:
+            raw_data = [json.loads(line) for line in f]
+    else:
+        with open(dataset_path, 'r', encoding='utf-8') as f:
+            raw_data = json.load(f)
+    
+    # 随机抽取5个样本进行测试
+    import random
+    random.seed(42)  # 固定种子确保可重复
+    test_samples = random.sample(raw_data, min(5, len(raw_data)))
+    
+    # 格式验证正则表达式
+    import re
+    format_regex = re.compile(r'\{\s*"extend"\s*:\s*"(yes|no)"\s*\}')
+    
+    correct_count = 0
+    print(f"\n测试 {len(test_samples)} 个样本的格式输出...\n")
+    
+    for i, sample in enumerate(test_samples):
+        # 构建输入（只有system和user消息）
+        messages = sample["messages"][:2]  # system + user
+        
+        # 应用chat模板
+        input_text = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+        )
+        
+        # 生成输出
+        inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=50,
+            temperature=0.1,  # 低温度确保确定性输出
+            do_sample=True,
+            pad_token_id=tokenizer.eos_token_id,
+        )
+        
+        # 解码生成的部分
+        generated = tokenizer.decode(outputs[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True)
+        
+        # 检查格式
+        match = format_regex.search(generated)
+        is_correct = match is not None
+        
+        if is_correct:
+            correct_count += 1
+            status = "✓ 正确"
+        else:
+            status = "✗ 错误"
+        
+        print(f"样本 {i+1}: {status}")
+        print(f"  输出: {generated[:100]}..." if len(generated) > 100 else f"  输出: {generated}")
+        print()
+    
+    # 统计结果
+    accuracy = correct_count / len(test_samples) * 100
+    print("=" * 60)
+    print(f"格式验证结果: {correct_count}/{len(test_samples)} ({accuracy:.1f}%)")
+    
+    if accuracy >= 80:
+        print("✓ SFT成功：模型已学会正确的JSON格式！")
+    elif accuracy >= 50:
+        print("△ SFT部分成功：模型正在学习格式，可能需要更多训练")
+    else:
+        print("✗ SFT失败：模型未能学会格式，请检查训练配置")
+    print("=" * 60)
     
     print("\nSFT训练完成!")
     print(f"LoRA模型: {output_dir}")
