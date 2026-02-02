@@ -2,7 +2,7 @@
 
 ## Overview
 
-从已实现的SFT训练和数据生成基础设施出发，构建完整的GRPO强化学习训练系统。Phase 1建立GRPO训练核心和reward函数框架，Phase 2实现Max Pressure baseline算法和配置管理系统，Phase 3集成完整的端到端训练流程，Phase 4通过测试验证确保系统稳定运行。
+从已实现的SFT训练和数据生成基础设施出发，构建完整的GRPO强化学习训练系统。Phase 1建立GRPO训练核心和reward函数框架，Phase 2实现Max Pressure baseline算法和配置管理系统，Phase 3集成完整的端到端训练流程，Phase 4通过测试验证确保系统稳定运行，Phase 5集成Max Pressure baseline到训练流程完成Milestone v1。
 
 ## Phases
 
@@ -15,7 +15,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: GRPO训练核心基础设施** - 建立GRPO训练脚本和reward函数框架
 - [x] **Phase 2: Max Pressure算法和配置管理** - 实现baseline算法和配置系统
 - [x] **Phase 3: 训练流程集成** - 完善端到端训练流程和数据验证
-- [ ] **Phase 4: 测试、验证和完善** - 通过单元测试和集成测试确保系统稳定性
+- [x] **Phase 4: 测试、验证和完善** - 通过单元测试和集成测试确保系统稳定性
+- [ ] **Phase 5: Max Pressure Baseline集成** - 将Max Pressure算法集成到训练流程，完成MAXP-01需求
 
 ## Phase Details
 
@@ -86,10 +87,32 @@ Plans:
 - [x] 04-01: 编写单元测试，覆盖reward函数、Max Pressure算法和配置加载
 - [x] 04-02: 编写集成测试，验证小规模端到端训练流程
 
+### Phase 5: Max Pressure Baseline集成
+**Goal**: 将Max Pressure算法集成到GRPO训练流程中，实现baseline比较和统计追踪，完成MAXP-01需求
+**Depends on**: Phase 4
+**Requirements**: MAXP-01-baseline-comparison
+**Gap Closure**: 关闭Milestone v1审计中发现的需求差距和集成差距
+
+**Success Criteria** (what must be TRUE):
+  1. Max Pressure决策函数在reward计算中被调用
+  2. 训练日志显示baseline准确率统计信息
+  3. compare_with_baseline()和compute_baseline_accuracy()函数被使用
+  4. training_config.yaml中reward.max_pressure.*配置项被激活
+  5. 单元测试验证baseline比较功能正常
+  6. 集成测试验证完整训练流程包含baseline追踪
+**Plans**: 5 plans
+
+Plans:
+- [ ] 05-01: 扩展reward计算函数，添加baseline比较逻辑到compute_reward()
+- [ ] 05-02: 增强训练脚本，添加baseline统计追踪到create_reward_function()
+- [ ] 05-03: 激活training_config.yaml中baseline配置项，添加enable_baseline_tracking参数
+- [ ] 05-04: 编写单元测试，验证baseline比较和统计功能
+- [ ] 05-05: 编写集成测试，验证baseline追踪在完整训练流程中工作
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -97,3 +120,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 2. Max Pressure算法和配置管理 | 3/3 | ✓ Complete | 2026-02-02 |
 | 3. 训练流程集成 | 3/3 | ✓ Complete | 2026-02-02 |
 | 4. 测试、验证和完善 | 2/2 | ✓ Complete | 2026-02-02 |
+| 5. Max Pressure Baseline集成 | 0/5 | Pending | - |
