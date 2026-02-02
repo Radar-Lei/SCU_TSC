@@ -93,6 +93,15 @@ def format_reward_fn(
     Returns:
         FormatResult对象，包含reward和格式验证结果
     """
+    # 处理None或非字符串输入
+    if output is None or not isinstance(output, str):
+        return FormatResult(
+            reward=invalid_reward,
+            is_strict=False,
+            is_partial=False,
+            extracted_decision=None
+        )
+
     # 默认正则表达式：匹配 {"extend": "yes/no"} 及其变体
     # 允许yes/no后有逗号或右括号，以处理带额外字段的JSON
     if regex is None:
@@ -115,7 +124,7 @@ def format_reward_fn(
                         is_partial=False,
                         extracted_decision=value.lower()
                     )
-    except (json.JSONDecodeError, TypeError, ValueError):
+    except (json.JSONDecodeError, TypeError, ValueError, AttributeError):
         pass
 
     # 第二步：如果不是严格格式，使用正则提取
