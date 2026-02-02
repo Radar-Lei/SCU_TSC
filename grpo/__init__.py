@@ -8,7 +8,17 @@ from .config import (
     GRPOTrainingConfig,
     load_config,
 )
-from .training import train_grpo, load_grpo_dataset
+# 注意：training 模块的导入放在最后或使用延迟导入，
+# 避免 `python -m grpo.training` 时出现 RuntimeWarning
+# 只有在非 -m 方式运行时才导入
+import sys
+if 'grpo.training' not in sys.modules:
+    from .training import train_grpo, load_grpo_dataset
+else:
+    # 如果已经在 sys.modules 中，直接引用
+    from grpo import training as _training
+    train_grpo = _training.train_grpo
+    load_grpo_dataset = _training.load_grpo_dataset
 from .reward import format_reward_fn, extract_decision, FormatResult
 from .sumo_reward import tsc_reward_fn, calculate_tsc_reward_single, ParallelSUMORewardCalculator, TSCResult
 from .max_pressure import (

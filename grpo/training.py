@@ -61,8 +61,18 @@ def load_grpo_dataset(dataset_path: str):
     all_data = []
     for json_file in json_files:
         print(f"正在加载数据集: {json_file}")
+        # 获取场景目录（grpo_dataset.json 所在目录）
+        scenario_dir = os.path.dirname(json_file)
         with open(json_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
+            # 将 state_file 转换为绝对路径，并保存场景目录
+            for item in data:
+                # 转换 state_file 为绝对路径
+                state_file = item.get("state_file", "")
+                if state_file and not os.path.isabs(state_file):
+                    item["state_file"] = os.path.join(scenario_dir, state_file)
+                # 保存场景目录（用于后续查找 sumocfg）
+                item["scenario_dir"] = scenario_dir
             all_data.extend(data)
 
     print(f"总共加载了 {len(all_data)} 条GRPO数据")
@@ -86,7 +96,8 @@ def load_grpo_dataset(dataset_path: str):
         ]
         
         grpo_data.append({
-            "prompt": messages,  # 使用messages格式
+            "prompt": messages,  # 使用messages格式，供GRPOTrainer使用
+            "raw_prompt": raw_prompt,  # 保存原始JSON字符串，供reward计算和baseline使用
             "id": item.get("id", ""),
             "scenario": item.get("scenario", ""),
             "junction_id": item.get("junction_id", ""),
@@ -130,9 +141,12 @@ def create_reward_function(
     # 预加载state_files（按数据集顺序）
     state_files = dataset["state_file"]
 
-    # 预加载时间参数（用于Max Pressure baseline计算）
-    # 注意：Dataset对象不支持.get()方法，需要检查列名是否存在
+    # 预加载原始 JSON prompts（用于TSC reward计算和baseline计算）
+    # raw_prompt 是原始 JSON 字符串，prompt 是 messages 格式（供 GRPOTrainer 使用）
     column_names = dataset.column_names
+    raw_prompts = dataset["raw_prompt"] if "raw_prompt" in column_names else dataset["prompt"]
+
+    # 预加载时间参数（用于Max Pressure baseline计算）
     green_elapsed_list = dataset["current_green_elapsed"] if "current_green_elapsed" in column_names else [None] * len(dataset)
     min_green_list = dataset["min_green"] if "min_green" in column_names else [None] * len(dataset)
     max_green_list = dataset["max_green"] if "max_green" in column_names else [None] * len(dataset)
@@ -147,8 +161,9 @@ def create_reward_function(
             baseline_config = mp_config if mp_config is not None else MaxPressureConfig()
 
             # 批量计算baseline决策
+            # 使用 raw_prompt（原始JSON字符串），而不是 prompt（messages格式）
             baseline_decisions = batch_max_pressure_decision(
-                prompts=dataset["prompt"],
+                prompts=dataset["raw_prompt"],
                 green_elapsed_list=green_elapsed_list,
                 min_green_list=min_green_list,
                 max_green_list=max_green_list,
@@ -208,12 +223,9 @@ def create_reward_function(
         aligned_min_green = min_green_list[:n] if len(min_green_list) >= n else min_green_list
         aligned_max_green = max_green_list[:n] if len(max_green_list) >= n else max_green_list
 
-        # 构建 prompts 列表（如果没有传入）
-        if prompts is None:
-            # 使用dataset中的prompt
-            prompts_to_use = dataset["prompt"][:n] if len(dataset["prompt"]) >= n else dataset["prompt"]
-        else:
-            prompts_to_use = prompts[:n] if len(prompts) >= n else prompts
+        # 构建 prompts 列表（用于 TSC reward 计算和 baseline 计算）
+        # 使用 raw_prompts（原始 JSON 字符串），而不是 prompt（messages 格式）
+        prompts_to_use = raw_prompts[:n] if len(raw_prompts) >= n else raw_prompts
 
         rewards, stats = batch_compute_reward(
             prompts=prompts_to_use,

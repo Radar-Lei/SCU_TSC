@@ -130,8 +130,7 @@ O^O/ \_/ \    Batch size per device = 2 | Gradient accumulation steps = 4
 加载了 11878 条训练数据
 
 正在配置reward函数链...
-警告: Baseline预计算失败: the JSON object must be str, bytes or bytearray, not list
-禁用baseline追踪
+已预计算 11878 个baseline决策
 正在配置GRPO训练参数...
 
 正在创建GRPO训练器...
@@ -146,8 +145,15 @@ O^O/ \_/ \    Batch size per device = 2 | Gradient accumulation steps = 4
 [DEBUG] completions[1] type: <class 'list'>
 [DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
 [DEBUG] outputs[0]: {"extend": "yes"}
-  0%|          | 1/17817 [00:32<162:52:49, 32.91s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 1/17817 [00:33<166:35:36, 33.66s/it]  Baseline Accuracy: 50.00% (4/8)
 
 ==================================================
 Reward Statistics:
@@ -155,8 +161,9 @@ Reward Statistics:
   Format accuracy: 100.0%
   Strict: 8, Partial: 0, Invalid: 0
   Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
+  Avg TSC reward: 0.024
+  Avg final reward: 1.024
+  Baseline Accuracy: 50.00% (4/8)
 ==================================================
 
 
@@ -167,8 +174,14 @@ Reward Statistics:
 [DEBUG] completions[1] type: <class 'list'>
 [DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
 [DEBUG] outputs[0]: {"extend": "no"}
-  0%|          | 2/17817 [00:34<71:04:32, 14.36s/it] Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 2/17817 [00:36<75:44:44, 15.31s/it]   Baseline Accuracy: 50.00% (4/8)
 
 ==================================================
 Reward Statistics:
@@ -176,8 +189,9 @@ Reward Statistics:
   Format accuracy: 100.0%
   Strict: 8, Partial: 0, Invalid: 0
   Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
+  Avg TSC reward: 0.012
+  Avg final reward: 1.012
+  Baseline Accuracy: 50.00% (4/8)
 ==================================================
 
 
@@ -188,8 +202,15 @@ Reward Statistics:
 [DEBUG] completions[1] type: <class 'list'>
 [DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
 [DEBUG] outputs[0]: {"extend": "no"}
-  0%|          | 3/17817 [00:35<41:39:35,  8.42s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 3/17817 [00:38<46:44:40,  9.45s/it]  Baseline Accuracy: 62.50% (5/8)
 
 ==================================================
 Reward Statistics:
@@ -197,8 +218,9 @@ Reward Statistics:
   Format accuracy: 100.0%
   Strict: 8, Partial: 0, Invalid: 0
   Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
+  Avg TSC reward: 0.036
+  Avg final reward: 1.036
+  Baseline Accuracy: 62.50% (5/8)
 ==================================================
 
 
@@ -209,8 +231,15 @@ Reward Statistics:
 [DEBUG] completions[1] type: <class 'list'>
 [DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
 [DEBUG] outputs[0]: {"extend": "yes"}
-  0%|          | 4/17817 [00:37<28:03:32,  5.67s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 4/17817 [00:41<33:07:49,  6.70s/it]  Baseline Accuracy: 37.50% (3/8)
 
 ==================================================
 Reward Statistics:
@@ -218,8 +247,9 @@ Reward Statistics:
   Format accuracy: 100.0%
   Strict: 8, Partial: 0, Invalid: 0
   Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
+  Avg TSC reward: -0.062
+  Avg final reward: 0.938
+  Baseline Accuracy: 37.50% (3/8)
 ==================================================
 
 
@@ -229,218 +259,4 @@ Reward Statistics:
 [DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
 [DEBUG] completions[1] type: <class 'list'>
 [DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
-[DEBUG] outputs[0]: {"extend": "no"}
-  0%|          | 5/17817 [00:38<20:28:26,  4.14s/it]                                                      0%|          | 5/17817 [00:38<20:28:26,  4.14s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
-
-==================================================
-Reward Statistics:
-  Total: 8
-  Format accuracy: 100.0%
-  Strict: 8, Partial: 0, Invalid: 0
-  Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
-==================================================
-
-{'loss': 0.0217, 'grad_norm': 0.1811235249042511, 'learning_rate': 2.0000000000000003e-06, 'num_tokens': 20760.0, 'completions/mean_length': 7.0, 'completions/min_length': 7.0, 'completions/max_length': 7.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.0, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 7.0, 'rewards/reward_fn/mean': 1.0, 'rewards/reward_fn/std': 0.0, 'reward': 1.0, 'reward_std': 0.0, 'frac_reward_zero_std': 1.0, 'completion_length': 7.0, 'kl': 0.21681666746735573, 'epoch': 0.0}
-
-[DEBUG] completions type: <class 'list'>
-[DEBUG] completions length: 8
-[DEBUG] completions[0] type: <class 'list'>
-[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
-[DEBUG] completions[1] type: <class 'list'>
-[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
-[DEBUG] outputs[0]: {"extend": "no"}
-  0%|          | 6/17817 [00:39<15:47:30,  3.19s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
-
-==================================================
-Reward Statistics:
-  Total: 8
-  Format accuracy: 100.0%
-  Strict: 8, Partial: 0, Invalid: 0
-  Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
-==================================================
-
-
-[DEBUG] completions type: <class 'list'>
-[DEBUG] completions length: 8
-[DEBUG] completions[0] type: <class 'list'>
-[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
-[DEBUG] completions[1] type: <class 'list'>
-[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
-[DEBUG] outputs[0]: {"extend": "yes"}
-  0%|          | 7/17817 [00:41<12:47:49,  2.59s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
-
-==================================================
-Reward Statistics:
-  Total: 8
-  Format accuracy: 100.0%
-  Strict: 8, Partial: 0, Invalid: 0
-  Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
-==================================================
-
-
-[DEBUG] completions type: <class 'list'>
-[DEBUG] completions length: 8
-[DEBUG] completions[0] type: <class 'list'>
-[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
-[DEBUG] completions[1] type: <class 'list'>
-[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
-[DEBUG] outputs[0]: {"extend": "no"}
-  0%|          | 8/17817 [00:42<10:48:45,  2.19s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
-
-==================================================
-Reward Statistics:
-  Total: 8
-  Format accuracy: 100.0%
-  Strict: 8, Partial: 0, Invalid: 0
-  Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
-==================================================
-
-
-[DEBUG] completions type: <class 'list'>
-[DEBUG] completions length: 8
-[DEBUG] completions[0] type: <class 'list'>
-[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
-[DEBUG] completions[1] type: <class 'list'>
-[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
-[DEBUG] outputs[0]: {"extend": "yes"}
-  0%|          | 9/17817 [00:43<9:38:58,  1.95s/it] Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
-
-==================================================
-Reward Statistics:
-  Total: 8
-  Format accuracy: 100.0%
-  Strict: 8, Partial: 0, Invalid: 0
-  Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
-==================================================
-
-
-[DEBUG] completions type: <class 'list'>
-[DEBUG] completions length: 8
-[DEBUG] completions[0] type: <class 'list'>
-[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
-[DEBUG] completions[1] type: <class 'list'>
-[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
-[DEBUG] outputs[0]: {"extend": "yes"}
-  0%|          | 10/17817 [00:45<8:45:05,  1.77s/it]                                                      0%|          | 10/17817 [00:45<8:45:05,  1.77s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
-
-==================================================
-Reward Statistics:
-  Total: 8
-  Format accuracy: 100.0%
-  Strict: 8, Partial: 0, Invalid: 0
-  Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
-==================================================
-
-{'loss': 0.0161, 'grad_norm': 0.05529969185590744, 'learning_rate': 4.5e-06, 'num_tokens': 41520.0, 'completions/mean_length': 7.0, 'completions/min_length': 7.0, 'completions/max_length': 7.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.0, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 7.0, 'rewards/reward_fn/mean': 1.0, 'rewards/reward_fn/std': 0.0, 'reward': 1.0, 'reward_std': 0.0, 'frac_reward_zero_std': 1.0, 'completion_length': 7.0, 'kl': 0.160950945597142, 'epoch': 0.0}
-
-[DEBUG] completions type: <class 'list'>
-[DEBUG] completions length: 8
-[DEBUG] completions[0] type: <class 'list'>
-[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
-[DEBUG] completions[1] type: <class 'list'>
-[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
-[DEBUG] outputs[0]: {"extend": "yes"}
-  0%|          | 11/17817 [00:46<8:07:53,  1.64s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
-
-==================================================
-Reward Statistics:
-  Total: 8
-  Format accuracy: 100.0%
-  Strict: 8, Partial: 0, Invalid: 0
-  Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
-==================================================
-
-
-[DEBUG] completions type: <class 'list'>
-[DEBUG] completions length: 8
-[DEBUG] completions[0] type: <class 'list'>
-[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
-[DEBUG] completions[1] type: <class 'list'>
-[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
-[DEBUG] outputs[0]: {"extend": "yes"}
-  0%|          | 12/17817 [00:48<7:43:09,  1.56s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
-
-==================================================
-Reward Statistics:
-  Total: 8
-  Format accuracy: 100.0%
-  Strict: 8, Partial: 0, Invalid: 0
-  Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
-==================================================
-
-
-[DEBUG] completions type: <class 'list'>
-[DEBUG] completions length: 8
-[DEBUG] completions[0] type: <class 'list'>
-[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
-[DEBUG] completions[1] type: <class 'list'>
-[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
-[DEBUG] outputs[0]: {"extend": "no"}
-  0%|          | 13/17817 [01:03<28:57:20,  5.85s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
-
-==================================================
-Reward Statistics:
-  Total: 8
-  Format accuracy: 100.0%
-  Strict: 8, Partial: 0, Invalid: 0
-  Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
-==================================================
-
-
-[DEBUG] completions type: <class 'list'>
-[DEBUG] completions length: 8
-[DEBUG] completions[0] type: <class 'list'>
-[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
-[DEBUG] completions[1] type: <class 'list'>
-[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "yes"\n}'}]
-[DEBUG] outputs[0]: {
-  "extend": "no"
-}
-  0%|          | 14/17817 [01:05<22:25:02,  4.53s/it]Warning: TSC reward calculation failed: SUMO reward calculation failed: the JSON object must be str, bytes or bytearray, not list
-Using format reward only for 8 samples
-
-==================================================
-Reward Statistics:
-  Total: 8
-  Format accuracy: 100.0%
-  Strict: 8, Partial: 0, Invalid: 0
-  Avg format reward: 1.000
-  Avg TSC reward: 0.000
-  Avg final reward: 1.000
-==================================================
-
-
-[DEBUG] completions type: <class 'list'>
-[DEBUG] completions length: 8
-[DEBUG] completions[0] type: <class 'list'>
-[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
-[DEBUG] completions[1] type: <class 'list'>
-[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
 [DEBUG] outputs[0]: {"extend": "no"}
