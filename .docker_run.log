@@ -105,7 +105,7 @@ The model is already on multiple devices. Skipping the move to device specified 
 O^O/ \_/ \    Batch size per device = 2 | Gradient accumulation steps = 4
 \        /    Data Parallel GPUs = 1 | Total batch size (2 x 4 x 1) = 8
  "-____-"     Trainable parameters = 17,596,416 of 511,629,184 (3.44% trained)
-正在配置LoRA...
+  0%|          | 0/17817 [00:00<?, ?it/s]正在配置LoRA...
 
 正在加载数据集...
 正在加载数据集: /home/samuel/SCU_TSC/data/grpo_datasets/arterial4x4_99/grpo_dataset.json
@@ -131,7 +131,7 @@ O^O/ \_/ \    Batch size per device = 2 | Gradient accumulation steps = 4
 正在创建GRPO训练器...
 
 开始训练...
-  0%|          | 0/17817 [00:00<?, ?it/s]Unsloth: Will smartly offload gradients to save VRAM!
+Unsloth: Will smartly offload gradients to save VRAM!
 
 [DEBUG] completions type: <class 'list'>
 [DEBUG] completions length: 8
@@ -148,7 +148,7 @@ O^O/ \_/ \    Batch size per device = 2 | Gradient accumulation steps = 4
  Retrying in 1 seconds
  Retrying in 1 seconds
  Retrying in 1 seconds
-  0%|          | 1/17817 [00:33<168:06:57, 33.97s/it]  Baseline Accuracy: 50.00% (4/8)
+  0%|          | 1/17817 [00:33<167:29:09, 33.84s/it]  Baseline Accuracy: 50.00% (4/8)
 
 ==================================================
 Reward Statistics:
@@ -156,8 +156,8 @@ Reward Statistics:
   Format accuracy: 100.0%
   Strict: 8, Partial: 0, Invalid: 0
   Avg format reward: 1.000
-  Avg TSC reward: 0.024
-  Avg final reward: 1.024
+  Avg TSC reward: 0.055
+  Avg final reward: 1.055
   Baseline Accuracy: 50.00% (4/8)
 ==================================================
 
@@ -176,7 +176,8 @@ Reward Statistics:
  Retrying in 1 seconds
  Retrying in 1 seconds
  Retrying in 1 seconds
-  0%|          | 2/17817 [00:36<76:19:58, 15.43s/it]   Baseline Accuracy: 50.00% (4/8)
+ Retrying in 1 seconds
+  0%|          | 2/17817 [00:36<76:39:08, 15.49s/it]   Baseline Accuracy: 50.00% (4/8)
 
 ==================================================
 Reward Statistics:
@@ -184,8 +185,8 @@ Reward Statistics:
   Format accuracy: 100.0%
   Strict: 8, Partial: 0, Invalid: 0
   Avg format reward: 1.000
-  Avg TSC reward: 0.012
-  Avg final reward: 1.012
+  Avg TSC reward: 0.022
+  Avg final reward: 1.022
   Baseline Accuracy: 50.00% (4/8)
 ==================================================
 
@@ -204,7 +205,7 @@ Reward Statistics:
  Retrying in 1 seconds
  Retrying in 1 seconds
  Retrying in 1 seconds
-  0%|          | 3/17817 [00:38<47:10:00,  9.53s/it]  Baseline Accuracy: 62.50% (5/8)
+  0%|          | 3/17817 [00:38<47:17:20,  9.56s/it]  Baseline Accuracy: 62.50% (5/8)
 
 ==================================================
 Reward Statistics:
@@ -212,8 +213,8 @@ Reward Statistics:
   Format accuracy: 100.0%
   Strict: 8, Partial: 0, Invalid: 0
   Avg format reward: 1.000
-  Avg TSC reward: 0.036
-  Avg final reward: 1.036
+  Avg TSC reward: 0.095
+  Avg final reward: 1.095
   Baseline Accuracy: 62.50% (5/8)
 ==================================================
 
@@ -230,9 +231,7 @@ Reward Statistics:
  Retrying in 1 seconds
  Retrying in 1 seconds
  Retrying in 1 seconds
- Retrying in 1 seconds
- Retrying in 1 seconds
-  0%|          | 4/17817 [00:41<33:17:26,  6.73s/it]  Baseline Accuracy: 37.50% (3/8)
+  0%|          | 4/17817 [00:41<33:31:19,  6.77s/it]  Baseline Accuracy: 37.50% (3/8)
 
 ==================================================
 Reward Statistics:
@@ -240,8 +239,8 @@ Reward Statistics:
   Format accuracy: 100.0%
   Strict: 8, Partial: 0, Invalid: 0
   Avg format reward: 1.000
-  Avg TSC reward: -0.062
-  Avg final reward: 0.938
+  Avg TSC reward: -0.186
+  Avg final reward: 0.814
   Baseline Accuracy: 37.50% (3/8)
 ==================================================
 
@@ -260,7 +259,7 @@ Reward Statistics:
  Retrying in 1 seconds
  Retrying in 1 seconds
  Retrying in 1 seconds
-  0%|          | 5/17817 [00:43<25:36:44,  5.18s/it]                                                      0%|          | 5/17817 [00:43<25:36:44,  5.18s/it]  Baseline Accuracy: 87.50% (7/8)
+  0%|          | 5/17817 [00:44<25:55:22,  5.24s/it]                                                      0%|          | 5/17817 [00:44<25:55:22,  5.24s/it]  Baseline Accuracy: 87.50% (7/8)
 
 ==================================================
 Reward Statistics:
@@ -268,12 +267,40 @@ Reward Statistics:
   Format accuracy: 100.0%
   Strict: 8, Partial: 0, Invalid: 0
   Avg format reward: 1.000
-  Avg TSC reward: 0.061
-  Avg final reward: 1.061
+  Avg TSC reward: 0.176
+  Avg final reward: 1.176
   Baseline Accuracy: 87.50% (7/8)
 ==================================================
 
-{'loss': 0.0223, 'grad_norm': 0.34495437145233154, 'learning_rate': 2.0000000000000003e-06, 'num_tokens': 20760.0, 'completions/mean_length': 7.0, 'completions/min_length': 7.0, 'completions/max_length': 7.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.0, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 7.0, 'rewards/reward_fn/mean': 1.0143281102180481, 'rewards/reward_fn/std': 0.13432303220033645, 'reward': 1.0143281102180481, 'reward_std': 0.1295726180076599, 'frac_reward_zero_std': 0.0, 'completion_length': 7.0, 'kl': 0.22302865013480186, 'epoch': 0.0}
+{'loss': 0.0223, 'grad_norm': 0.3798879086971283, 'learning_rate': 2.0000000000000003e-06, 'num_tokens': 20760.0, 'completions/mean_length': 7.0, 'completions/min_length': 7.0, 'completions/max_length': 7.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.0, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 7.0, 'rewards/reward_fn/mean': 1.0324506759643555, 'rewards/reward_fn/std': 0.38267343640327456, 'reward': 1.0324506759643555, 'reward_std': 0.37502121925354004, 'frac_reward_zero_std': 0.0, 'completion_length': 7.0, 'kl': 0.22328177653253078, 'epoch': 0.0}
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 6/17817 [00:46<21:22:42,  4.32s/it]  Baseline Accuracy: 50.00% (4/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: -0.073
+  Avg final reward: 0.927
+  Baseline Accuracy: 50.00% (4/8)
+==================================================
+
 
 [DEBUG] completions type: <class 'list'>
 [DEBUG] completions length: 8
@@ -290,7 +317,7 @@ Reward Statistics:
  Retrying in 1 seconds
  Retrying in 1 seconds
  Retrying in 1 seconds
-  0%|          | 6/17817 [00:46<21:02:28,  4.25s/it]  Baseline Accuracy: 50.00% (4/8)
+  0%|          | 7/17817 [00:49<18:27:45,  3.73s/it]  Baseline Accuracy: 87.50% (7/8)
 
 ==================================================
 Reward Statistics:
@@ -298,11 +325,1268 @@ Reward Statistics:
   Format accuracy: 100.0%
   Strict: 8, Partial: 0, Invalid: 0
   Avg format reward: 1.000
-  Avg TSC reward: -0.025
-  Avg final reward: 0.975
-  Baseline Accuracy: 50.00% (4/8)
+  Avg TSC reward: 0.168
+  Avg final reward: 1.168
+  Baseline Accuracy: 87.50% (7/8)
 ==================================================
 
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 8/17817 [00:51<16:31:15,  3.34s/it]  Baseline Accuracy: 87.50% (7/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.176
+  Avg final reward: 1.176
+  Baseline Accuracy: 87.50% (7/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "yes"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 9/17817 [00:54<15:16:43,  3.09s/it]  Baseline Accuracy: 75.00% (6/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.135
+  Avg final reward: 1.135
+  Baseline Accuracy: 75.00% (6/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 10/17817 [00:56<14:25:05,  2.91s/it]                                                       0%|          | 10/17817 [00:56<14:25:05,  2.91s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+{'loss': 0.0216, 'grad_norm': 0.09980423748493195, 'learning_rate': 4.5e-06, 'num_tokens': 41520.0, 'completions/mean_length': 7.0, 'completions/min_length': 7.0, 'completions/max_length': 7.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.0, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 7.0, 'rewards/reward_fn/mean': 1.1309180736541748, 'rewards/reward_fn/std': 0.3627426505088806, 'reward': 1.1309180736541748, 'reward_std': 0.3099531054496765, 'frac_reward_zero_std': 0.0, 'completion_length': 7.0, 'kl': 0.21633371021598577, 'epoch': 0.0}
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "yes"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "yes"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 11/17817 [00:59<13:47:15,  2.79s/it]  Baseline Accuracy: 87.50% (7/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.208
+  Avg final reward: 1.208
+  Baseline Accuracy: 87.50% (7/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 12/17817 [01:01<13:24:03,  2.71s/it]  Baseline Accuracy: 87.50% (7/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 87.50% (7/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 13/17817 [01:04<13:09:20,  2.66s/it]  Baseline Accuracy: 75.00% (6/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.000
+  Avg final reward: 1.000
+  Baseline Accuracy: 75.00% (6/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 14/17817 [01:06<12:57:42,  2.62s/it]  Baseline Accuracy: 87.50% (7/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.080
+  Avg final reward: 1.080
+  Baseline Accuracy: 87.50% (7/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 15/17817 [01:09<12:50:47,  2.60s/it]                                                       0%|          | 15/17817 [01:09<12:50:47,  2.60s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+{'loss': 0.0297, 'grad_norm': 0.042462434619665146, 'learning_rate': 4.9988768461840854e-06, 'num_tokens': 62280.0, 'completions/mean_length': 7.0, 'completions/min_length': 7.0, 'completions/max_length': 7.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.0, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 7.0, 'rewards/reward_fn/mean': 1.1570929765701294, 'rewards/reward_fn/std': 0.3314852356910706, 'reward': 1.1570929765701294, 'reward_std': 0.2903895676136017, 'frac_reward_zero_std': 0.0, 'completion_length': 7.0, 'kl': 0.29705546498298646, 'epoch': 0.0}
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 16/17817 [01:11<12:47:21,  2.59s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 17/17817 [01:14<12:43:48,  2.57s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 18/17817 [01:16<12:37:52,  2.55s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 19/17817 [01:19<12:34:31,  2.54s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 20/17817 [01:21<12:35:12,  2.55s/it]                                                       0%|          | 20/17817 [01:21<12:35:12,  2.55s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+{'loss': 0.0261, 'grad_norm': 0.044493671506643295, 'learning_rate': 4.997472903914191e-06, 'num_tokens': 83040.0, 'completions/mean_length': 7.0, 'completions/min_length': 7.0, 'completions/max_length': 7.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.0, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 7.0, 'rewards/reward_fn/mean': 1.2484252452850342, 'rewards/reward_fn/std': 0.30063775181770325, 'reward': 1.2484252452850342, 'reward_std': 0.24601703882217407, 'frac_reward_zero_std': 0.0, 'completion_length': 7.0, 'kl': 0.26074949465692043, 'epoch': 0.0}
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 21/17817 [01:24<12:44:24,  2.58s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 22/17817 [01:27<12:40:54,  2.57s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 23/17817 [01:29<12:38:33,  2.56s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 24/17817 [01:46<33:46:59,  6.84s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 25/17817 [01:49<27:26:10,  5.55s/it]                                                       0%|          | 25/17817 [01:49<27:26:10,  5.55s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+{'loss': 0.2879, 'grad_norm': 1.2970861196517944, 'learning_rate': 4.996068961644297e-06, 'num_tokens': 103809.0, 'completions/mean_length': 7.225, 'completions/min_length': 7.0, 'completions/max_length': 7.6, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.225, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 7.6, 'rewards/reward_fn/mean': 1.2484252452850342, 'rewards/reward_fn/std': 0.30063775181770325, 'reward': 1.2484252452850342, 'reward_std': 0.24601703882217407, 'frac_reward_zero_std': 0.0, 'completion_length': 7.6, 'kl': 2.879235330596566, 'epoch': 0.0}
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 26/17817 [01:51<23:06:10,  4.67s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 27/17817 [01:54<20:05:45,  4.07s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 28/17817 [01:56<17:59:58,  3.64s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 29/17817 [01:59<16:30:44,  3.34s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 30/17817 [02:02<15:32:17,  3.14s/it]                                                       0%|          | 30/17817 [02:02<15:32:17,  3.14s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+{'loss': 0.0253, 'grad_norm': 0.5144227147102356, 'learning_rate': 4.994665019374404e-06, 'num_tokens': 124674.0, 'completions/mean_length': 9.625, 'completions/min_length': 8.8, 'completions/max_length': 10.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 9.625, 'completions/min_terminated_length': 8.8, 'completions/max_terminated_length': 10.0, 'rewards/reward_fn/mean': 1.2484252452850342, 'rewards/reward_fn/std': 0.30063775181770325, 'reward': 1.2484252452850342, 'reward_std': 0.24601703882217407, 'frac_reward_zero_std': 0.0, 'completion_length': 10.0, 'kl': 0.2532200049608946, 'epoch': 0.01}
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 31/17817 [02:05<14:51:55,  3.01s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 32/17817 [02:07<14:19:03,  2.90s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 33/17817 [02:10<13:56:44,  2.82s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 34/17817 [02:12<13:40:26,  2.77s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '```json\n{\n  "extend": "no"\n}\n```'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 35/17817 [02:15<13:50:17,  2.80s/it]                                                       0%|          | 35/17817 [02:15<13:50:17,  2.80s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 6, Partial: 2, Invalid: 0
+  Avg format reward: 0.625
+  Avg TSC reward: 0.248
+  Avg final reward: 0.873
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+{'loss': 0.0155, 'grad_norm': 5.1999640464782715, 'learning_rate': 4.99326107710451e-06, 'num_tokens': 145562.0, 'completions/mean_length': 10.2, 'completions/min_length': 10.0, 'completions/max_length': 10.8, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 10.2, 'completions/min_terminated_length': 10.0, 'completions/max_terminated_length': 10.8, 'rewards/reward_fn/mean': 1.1734252572059631, 'rewards/reward_fn/std': 0.40146617889404296, 'reward': 1.1734252572059631, 'reward_std': 0.3083688378334045, 'frac_reward_zero_std': 0.0, 'completion_length': 10.8, 'kl': 0.15502534694969655, 'epoch': 0.01}
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 36/17817 [02:18<13:37:33,  2.76s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 37/17817 [02:21<13:29:25,  2.73s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 38/17817 [02:23<13:32:36,  2.74s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 39/17817 [02:26<13:21:14,  2.70s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{\n  "extend": "no"\n}'}]
+[DEBUG] outputs[0]: {
+  "extend": "no"
+}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 40/17817 [02:29<13:18:36,  2.70s/it]                                                       0%|          | 40/17817 [02:29<13:18:36,  2.70s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+{'loss': 0.0267, 'grad_norm': 9.279913902282715, 'learning_rate': 4.9918571348346164e-06, 'num_tokens': 166415.0, 'completions/mean_length': 9.325, 'completions/min_length': 7.6, 'completions/max_length': 10.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 9.325, 'completions/min_terminated_length': 7.6, 'completions/max_terminated_length': 10.0, 'rewards/reward_fn/mean': 1.2484252452850342, 'rewards/reward_fn/std': 0.30063775181770325, 'reward': 1.2484252452850342, 'reward_std': 0.24601703882217407, 'frac_reward_zero_std': 0.0, 'completion_length': 10.0, 'kl': 0.26656119599938394, 'epoch': 0.01}
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 41/17817 [02:31<13:15:45,  2.69s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 42/17817 [02:34<13:10:42,  2.67s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 43/17817 [02:37<13:01:43,  2.64s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 44/17817 [02:39<12:55:11,  2.62s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 45/17817 [02:42<13:01:55,  2.64s/it]                                                       0%|          | 45/17817 [02:42<13:01:55,  2.64s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+{'loss': 0.0486, 'grad_norm': 0.19558750092983246, 'learning_rate': 4.990453192564722e-06, 'num_tokens': 187193.0, 'completions/mean_length': 7.45, 'completions/min_length': 7.0, 'completions/max_length': 8.2, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.45, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 8.2, 'rewards/reward_fn/mean': 1.2484252452850342, 'rewards/reward_fn/std': 0.30063775181770325, 'reward': 1.2484252452850342, 'reward_std': 0.24601703882217407, 'frac_reward_zero_std': 0.0, 'completion_length': 8.2, 'kl': 0.48562197722494604, 'epoch': 0.01}
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 46/17817 [02:44<12:57:15,  2.62s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 47/17817 [02:47<12:52:56,  2.61s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 48/17817 [02:50<12:57:05,  2.62s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 49/17817 [02:52<13:02:36,  2.64s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 50/17817 [02:55<12:55:22,  2.62s/it]                                                       0%|          | 50/17817 [02:55<12:55:22,  2.62s/it]  Baseline Accuracy: 100.00% (8/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.248
+  Avg final reward: 1.248
+  Baseline Accuracy: 100.00% (8/8)
+==================================================
+
+{'loss': 0.0429, 'grad_norm': 0.2153390794992447, 'learning_rate': 4.989049250294828e-06, 'num_tokens': 207956.0, 'completions/mean_length': 7.075, 'completions/min_length': 7.0, 'completions/max_length': 7.6, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.075, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 7.6, 'rewards/reward_fn/mean': 1.2484252452850342, 'rewards/reward_fn/std': 0.30063775181770325, 'reward': 1.2484252452850342, 'reward_std': 0.24601703882217407, 'frac_reward_zero_std': 0.0, 'completion_length': 7.6, 'kl': 0.4287245191633701, 'epoch': 0.01}
 
 [DEBUG] completions type: <class 'list'>
 [DEBUG] completions length: 8

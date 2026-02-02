@@ -187,7 +187,9 @@ def calculate_tsc_reward_single(
 
         # 计算变化和reward
         delta = queue_after - queue_before
-        reward = normalize_reward(delta, scale=10.0)
+        # 从配置中读取reward_scale，而不是硬编码
+        reward_scale = getattr(config, 'reward_scale', 10.0)
+        reward = normalize_reward(delta, scale=reward_scale)
 
         return TSCResult(
             reward=reward,

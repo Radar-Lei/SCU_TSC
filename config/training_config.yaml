@@ -87,7 +87,9 @@ reward:
 
   # TSC Reward参数
   tsc:
-    reward_scale: 10.0
+    # reward_scale越小，对排队变化越敏感
+    # 设为3.0: 排队变化3辆对应约0.76的reward差异
+    reward_scale: 3.0
 
   # Max Pressure配置
   max_pressure:
