@@ -78,13 +78,13 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. 单元测试覆盖format_reward_fn的边界情况（空输出、错误JSON、有效变体）
   2. 单元测试验证Max Pressure算法在各种输入下的正确性
-  3. 小规模训练验证（10条数据、5步训练）成功完成且无错误
+  3. 小规模训练验证（50条GRPO数据、20条SFT数据、10步训练）成功完成且无错误
   4. 端到端测试运行完整流程并输出训练好的模型
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: 编写单元测试，覆盖reward函数、Max Pressure算法和配置加载
-- [ ] 04-02: 编写集成测试，验证小规模端到端训练流程
+- [x] 04-01: 编写单元测试，覆盖reward函数、Max Pressure算法和配置加载
+- [x] 04-02: 编写集成测试，验证小规模端到端训练流程
 
 ## Progress
 
@@ -96,4 +96,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. GRPO训练核心基础设施 | 4/4 | ✓ Complete | 2025-02-02 |
 | 2. Max Pressure算法和配置管理 | 3/3 | ✓ Complete | 2026-02-02 |
 | 3. 训练流程集成 | 3/3 | ✓ Complete | 2026-02-02 |
-| 4. 测试、验证和完善 | 0/2 | Not started | - |
+| 4. 测试、验证和完善 | 2/2 | ✓ Complete | 2026-02-02 |
