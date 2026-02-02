@@ -1,5 +1,14 @@
 # -*- coding: utf-8 -*-
-"""GRPO模块初始化"""
+"""GRPO模块初始化
+
+注意：training 模块不在此处自动导入，以避免使用 `python -m grpo.training` 时
+产生 RuntimeWarning（模块在包导入后但执行前已存在于 sys.modules 中）。
+
+如需使用 training 模块的功能，请显式导入：
+    from grpo.training import train_grpo, load_grpo_dataset
+或直接运行：
+    python -m grpo.training
+"""
 
 from .config import (
     GRPOConfig,
@@ -8,17 +17,6 @@ from .config import (
     GRPOTrainingConfig,
     load_config,
 )
-# 注意：training 模块的导入放在最后或使用延迟导入，
-# 避免 `python -m grpo.training` 时出现 RuntimeWarning
-# 只有在非 -m 方式运行时才导入
-import sys
-if 'grpo.training' not in sys.modules:
-    from .training import train_grpo, load_grpo_dataset
-else:
-    # 如果已经在 sys.modules 中，直接引用
-    from grpo import training as _training
-    train_grpo = _training.train_grpo
-    load_grpo_dataset = _training.load_grpo_dataset
 from .reward import format_reward_fn, extract_decision, FormatResult
 from .sumo_reward import tsc_reward_fn, calculate_tsc_reward_single, ParallelSUMORewardCalculator, TSCResult
 from .max_pressure import (
@@ -39,8 +37,6 @@ __all__ = [
     # 训练相关
     'GRPOTrainingConfig',
     'load_config',
-    'train_grpo',
-    'load_grpo_dataset',
     # Reward函数
     'format_reward_fn',
     'extract_decision',
@@ -59,3 +55,13 @@ __all__ = [
     'compare_with_baseline',
     'compute_baseline_accuracy',
 ]
+
+
+def __getattr__(name):
+    """延迟导入 training 模块的函数，避免循环导入和 -m 运行时的警告"""
+    if name in ('train_grpo', 'load_grpo_dataset'):
+        from .training import train_grpo, load_grpo_dataset
+        globals()['train_grpo'] = train_grpo
+        globals()['load_grpo_dataset'] = load_grpo_dataset
+        return globals()[name]
+    raise AttributeError(f"module 'grpo' has no attribute {name!r}")

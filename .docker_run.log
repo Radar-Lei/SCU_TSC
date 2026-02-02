@@ -14,10 +14,6 @@
 
 [0;34m[Step 0/5][0m 验证数据...
 检测到已有数据，执行数据验证...
-/home/samuel/SCU_TSC/grpo/validate_data.py:570: UserWarning: WARNING: Unsloth should be imported before [transformers] to ensure all optimizations are applied. Your code may run slower or encounter memory issues without these optimizations.
-
-Please restructure your imports with 'import unsloth' at the top of your file.
-  __import__(package)
 /usr/local/lib/python3.12/dist-packages/unsloth/__init__.py:95: UserWarning: Unsloth: `UNSLOTH_VLLM_STANDBY` is on, but requires `expandable_segments` to be off. We will remove `expandable_segments`.
   import unsloth_zoo
 运行所有验证...
@@ -43,10 +39,10 @@ Please restructure your imports with 'import unsloth' at the top of your file.
 验证配置文件: /home/samuel/SCU_TSC/config/training_config.yaml
   YAML格式正确
   torch: 已安装
-  transformers: 已安装
 🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
 🦥 Unsloth Zoo will now patch everything to make training faster!
   unsloth: 已安装
+  transformers: 已安装
   trl: 已安装
   SUMO_HOME: /usr/share/sumo
   SUMO命令可用
@@ -67,7 +63,6 @@ Please restructure your imports with 'import unsloth' at the top of your file.
 [0;32m✓ Step 3/5 完成[0m
 
 [0;34m[Step 4/5][0m GRPO训练...
-<frozen runpy>:128: RuntimeWarning: 'grpo.training' found in sys.modules after import of package 'grpo', but prior to execution of 'grpo.training'; this may result in unpredictable behaviour
 /usr/local/lib/python3.12/dist-packages/unsloth/__init__.py:95: UserWarning: Unsloth: `UNSLOTH_VLLM_STANDBY` is on, but requires `expandable_segments` to be off. We will remove `expandable_segments`.
   import unsloth_zoo
 已加载中央训练配置: /home/samuel/SCU_TSC/config/training_config.yaml
@@ -153,7 +148,7 @@ O^O/ \_/ \    Batch size per device = 2 | Gradient accumulation steps = 4
  Retrying in 1 seconds
  Retrying in 1 seconds
  Retrying in 1 seconds
-  0%|          | 1/17817 [00:33<166:35:36, 33.66s/it]  Baseline Accuracy: 50.00% (4/8)
+  0%|          | 1/17817 [00:33<168:06:57, 33.97s/it]  Baseline Accuracy: 50.00% (4/8)
 
 ==================================================
 Reward Statistics:
@@ -181,7 +176,7 @@ Reward Statistics:
  Retrying in 1 seconds
  Retrying in 1 seconds
  Retrying in 1 seconds
-  0%|          | 2/17817 [00:36<75:44:44, 15.31s/it]   Baseline Accuracy: 50.00% (4/8)
+  0%|          | 2/17817 [00:36<76:19:58, 15.43s/it]   Baseline Accuracy: 50.00% (4/8)
 
 ==================================================
 Reward Statistics:
@@ -209,8 +204,7 @@ Reward Statistics:
  Retrying in 1 seconds
  Retrying in 1 seconds
  Retrying in 1 seconds
- Retrying in 1 seconds
-  0%|          | 3/17817 [00:38<46:44:40,  9.45s/it]  Baseline Accuracy: 62.50% (5/8)
+  0%|          | 3/17817 [00:38<47:10:00,  9.53s/it]  Baseline Accuracy: 62.50% (5/8)
 
 ==================================================
 Reward Statistics:
@@ -238,8 +232,7 @@ Reward Statistics:
  Retrying in 1 seconds
  Retrying in 1 seconds
  Retrying in 1 seconds
- Retrying in 1 seconds
-  0%|          | 4/17817 [00:41<33:07:49,  6.70s/it]  Baseline Accuracy: 37.50% (3/8)
+  0%|          | 4/17817 [00:41<33:17:26,  6.73s/it]  Baseline Accuracy: 37.50% (3/8)
 
 ==================================================
 Reward Statistics:
@@ -250,6 +243,64 @@ Reward Statistics:
   Avg TSC reward: -0.062
   Avg final reward: 0.938
   Baseline Accuracy: 37.50% (3/8)
+==================================================
+
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 5/17817 [00:43<25:36:44,  5.18s/it]                                                      0%|          | 5/17817 [00:43<25:36:44,  5.18s/it]  Baseline Accuracy: 87.50% (7/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: 0.061
+  Avg final reward: 1.061
+  Baseline Accuracy: 87.50% (7/8)
+==================================================
+
+{'loss': 0.0223, 'grad_norm': 0.34495437145233154, 'learning_rate': 2.0000000000000003e-06, 'num_tokens': 20760.0, 'completions/mean_length': 7.0, 'completions/min_length': 7.0, 'completions/max_length': 7.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 7.0, 'completions/min_terminated_length': 7.0, 'completions/max_terminated_length': 7.0, 'rewards/reward_fn/mean': 1.0143281102180481, 'rewards/reward_fn/std': 0.13432303220033645, 'reward': 1.0143281102180481, 'reward_std': 0.1295726180076599, 'frac_reward_zero_std': 0.0, 'completion_length': 7.0, 'kl': 0.22302865013480186, 'epoch': 0.0}
+
+[DEBUG] completions type: <class 'list'>
+[DEBUG] completions length: 8
+[DEBUG] completions[0] type: <class 'list'>
+[DEBUG] completions[0] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] completions[1] type: <class 'list'>
+[DEBUG] completions[1] value: [{'role': 'assistant', 'content': '{"extend": "no"}'}]
+[DEBUG] outputs[0]: {"extend": "no"}
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+ Retrying in 1 seconds
+  0%|          | 6/17817 [00:46<21:02:28,  4.25s/it]  Baseline Accuracy: 50.00% (4/8)
+
+==================================================
+Reward Statistics:
+  Total: 8
+  Format accuracy: 100.0%
+  Strict: 8, Partial: 0, Invalid: 0
+  Avg format reward: 1.000
+  Avg TSC reward: -0.025
+  Avg final reward: 0.975
+  Baseline Accuracy: 50.00% (4/8)
 ==================================================
 
 

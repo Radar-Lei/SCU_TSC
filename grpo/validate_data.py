@@ -558,14 +558,16 @@ def validate_config_and_environment(
             result.add_error(f"解析配置文件失败: {e}")
 
     # 检查Python包
-    required_packages = {
-        "torch": "深度学习框架",
-        "transformers": "Hugging Face Transformers",
-        "unsloth": "Unsloth优化库",
-        "trl": "TRL强化学习训练库",
-    }
+    # 注意：unsloth 必须在 transformers 之前导入，以确保优化生效
+    # 使用有序列表而非字典，确保导入顺序
+    required_packages = [
+        ("torch", "深度学习框架"),
+        ("unsloth", "Unsloth优化库"),  # 必须在 transformers 之前
+        ("transformers", "Hugging Face Transformers"),
+        ("trl", "TRL强化学习训练库"),
+    ]
 
-    for package, description in required_packages.items():
+    for package, description in required_packages:
         try:
             __import__(package)
             if verbose:
