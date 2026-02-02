@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2025-02-02)
 ## Current Position
 
 Phase: 5 of 5 (Max Pressure Baseline集成)
-Plan: 1 of 1 in current phase
-Status: In progress
-Last activity: 2026-02-02 — Executing 05-01-PLAN.md (Max Pressure Baseline集成到Reward计算)
+Plan: 2 of 2 in current phase
+Status: Phase 5 complete ✓
+Last activity: 2026-02-02 — Completed 05-02-PLAN.md (增强训练脚本添加Max Pressure baseline统计追踪)
 
-Progress: [████░░░░░░░░░░░░░░] 92% (14/15 total plans, 1/1 in Phase 5)
+Progress: [███████████████████] 100% (15/15 total plans, 2/2 in Phase 5)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
-- Average duration: 7m 52s
-- Total execution time: 1h 47m
+- Total plans completed: 15
+- Average duration: 7m 40s
+- Total execution time: 1h 55m
 
 **By Phase:**
 
@@ -31,10 +31,10 @@ Progress: [████░░░░░░░░░░░░░░] 92% (14/15 to
 | 2. Max Pressure算法和配置管理 | 3 | 3 | 5m 16s |
 | 3. 训练流程集成 | 3 | 3 | 4m 25s |
 | 4. 测试、验证和完善 | 2 | 2 | 13m 30s |
-| 5. Max Pressure Baseline集成 | 1 | 1 | 2m 0s |
+| 5. Max Pressure Baseline集成 | 2 | 2 | 4m 0s |
 
 **Recent Trend:**
-- Last 5 plans: 9m 6s
+- Last 5 plans: 8m 18s
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -136,6 +136,13 @@ Recent decisions affecting current work:
 - 统计信息输出：通过print()输出baseline准确率，不扩展RewardStats dataclass，最小化对现有代码的影响
 - 配置传递：接受mp_config参数，为None时使用默认配置MaxPressureConfig()，提供灵活性同时保持易用性
 
+**From 05-02:**
+- 预计算baseline决策：在create_reward_function()中预计算所有样本的baseline决策，存储为闭包变量，避免每次调用reward_fn时重复计算
+- 延迟导入MaxPressureConfig：使用TYPE_CHECKING和Any类型避免config.py与max_pressure.py的循环导入
+- 向后兼容配置传递：使用getattr(config, 'enable_baseline', False)确保旧配置对象没有baseline字段时使用默认值
+- 时间参数保留：load_grpo_dataset()保留current_green_elapsed, min_green, max_green字段供baseline使用
+- 训练日志增强：train_grpo()打印baseline追踪状态和配置详情，reward_fn计算并显示Baseline Accuracy统计
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -153,5 +160,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 05-01-PLAN.md (Max Pressure Baseline集成到Reward计算)
+Stopped at: Completed 05-02-PLAN.md (增强训练脚本添加Max Pressure baseline统计追踪)
 Resume file: None
