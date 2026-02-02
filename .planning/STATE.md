@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2025-02-02)
 
 **Core value:** 模型能够根据SUMO仿真状态的相位排队信息，准确判断是否延长当前绿灯相位，以最小化整个交叉口的排队车辆数。
-**Current focus:** Phase 2: Max Pressure算法和配置管理
+**Current focus:** Phase 3: 训练流程集成
 
 ## Current Position
 
-Phase: 2 of 4 (Max Pressure算法和配置管理)
-Plan: 3 of 3 in current phase
-Status: Phase 2 complete
-Last activity: 2026-02-02 — Completed 02-03-PLAN.md (配置验证和覆盖机制)
+Phase: 3 of 4 (训练流程集成)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-02 — Completed 03-01-PLAN.md (docker/publish.sh完善)
 
-Progress: [████████████████████████] 100% (3/3 plans in Phase 2)
+Progress: [███░░░░░░░░░░░░░░░░░░░] 17% (1/3 plans in Phase 3)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 6m 45s
-- Total execution time: 47m 17s
+- Total plans completed: 8
+- Average duration: 6m 2s
+- Total execution time: 48m 0s
 
 **By Phase:**
 
@@ -29,11 +29,11 @@ Progress: [███████████████████████
 |-------|-------|-------|----------|
 | 1. GRPO训练核心基础设施 | 4 | 4 | 7m 48s |
 | 2. Max Pressure算法和配置管理 | 3 | 3 | 5m 16s |
-| 3. 训练流程集成 | 0 | 0 | - |
+| 3. 训练流程集成 | 1 | 3 | 1m 43s |
 | 4. 测试、验证和完善 | 0 | 0 | - |
 
 **Recent Trend:**
-- Last 5 plans: 5m 16s
+- Last 5 plans: 4m 22s
 - Trend: Accelerating
 
 *Updated after each plan completion*
@@ -88,6 +88,13 @@ Recent decisions affecting current work:
 - 命令行参数覆盖通过默认值比较检测（而非None检查）
 - 验证测试套件覆盖所有主要验证规则和边界情况
 
+**From 03-01:**
+- docker/publish.sh升级为现代化CI/CD脚本（144行→330行）
+- 双重依赖检查机制：主机侧+容器内，确保CUDA/SUMO/Python包可用
+- 动态进度指示器：[Step N/4]标记+✓完成标记，ANSI颜色美化
+- 失败快速停止：子shell错误捕获+红色错误信息+exit 1
+- 训练摘要输出：训练时间+数据集大小+模型路径（outputs/YYYY-MM-DD_sft/和outputs/YYYY-MM-DD_grpo/）
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -104,5 +111,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 02-03-PLAN.md (配置验证和覆盖机制)
+Stopped at: Completed 03-01-PLAN.md (docker/publish.sh完善)
 Resume file: None
