@@ -11,16 +11,16 @@ training:
     num_epochs: 3
     batch_size: 2
     gradient_accumulation_steps: 4
-    learning_rate: 2.0e-4
+    learning_rate: 1.0e-4  # 降低学习率以减缓过拟合
     max_steps: null  # null表示不限制
     logging_steps: 5
     save_steps: 50
     eval_percent: 0.05  # 验证集比例
-    eval_limit: 100     # 验证集最大数量
+    eval_limit: 300     # 验证集最大数量
     eval_steps: 30
     warmup_steps: 5
     optim: "adamw_8bit"
-    weight_decay: 0.001
+    weight_decay: 0.01  # 增加权重衰减以加强正则化
     lr_scheduler_type: "linear"
     seed: 3407
 
@@ -60,7 +60,7 @@ simulation:
     max_green_offset_range: 5.0
     default_min_green: 10.0
     default_max_green: 60.0
-    max_workers: 4
+    max_workers: 8
     port_range: [10000, 60000]
 
   # 场景配置
@@ -103,9 +103,6 @@ paths:
   # 模型路径
   sft_model_dir: "/home/samuel/SCU_TSC/model/sft_model"
   grpo_model_dir: "/home/samuel/SCU_TSC/model/grpo_model"
-
-  # 配置路径
-  grpo_config: "/home/samuel/SCU_TSC/config/grpo_config.yaml"
 
 # ============== 日志配置 ==============
 logging:

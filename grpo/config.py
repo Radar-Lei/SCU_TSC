@@ -2,10 +2,17 @@
 """
 GRPO配置模块
 
-包含多个配置类：
-1. GRPOConfig: 数据集生成配置（原有的）
-2. GRPOTrainingConfig: GRPO训练配置（用于grpo_config.yaml）
-3. TrainingConfig: 中央训练配置（用于training_config.yaml）
+包含多个配置类:
+1. GRPOConfig: 数据集生成配置(使用Python默认值,不读取YAML)
+2. GRPOTrainingConfig: GRPO训练配置(用于从training_config.yaml的training.grpo段加载)
+3. TrainingConfig: 中央训练配置(用于读取training_config.yaml)
+
+配置文件说明:
+  - 使用 config/training_config.yaml 作为唯一配置源
+  - training.grpo 段包含GRPO训练参数
+  - training.sft 段包含SFT训练参数
+  - simulation.* 段包含SUMO仿真参数
+  - reward.* 段包含奖励函数配置
 """
 
 from dataclasses import dataclass, field
@@ -25,7 +32,11 @@ from grpo.max_pressure import MaxPressureConfig
 
 @dataclass
 class GRPOConfig:
-    """GRPO数据集生成配置"""
+    """GRPO数据集生成配置
+
+    注意: 此配置类用于数据生成,使用Python默认值,不读取YAML文件。
+    如需配置训练参数,请使用 config/training_config.yaml。
+    """
     
     # ============== 决策参数 ==============
     # 每次决策延长的秒数
@@ -256,8 +267,11 @@ class GRPOTrainingConfig:
         """
         从YAML文件加载配置
 
+        注意: 推荐使用TrainingConfig.from_yaml()从training_config.yaml加载,
+        该方法会自动处理嵌套配置并提供统一的配置访问接口。
+
         Args:
-            path: YAML配置文件路径
+            path: YAML配置文件路径 (推荐使用 config/training_config.yaml)
 
         Returns:
             GRPOTrainingConfig实例
@@ -530,7 +544,6 @@ class PathsConfig:
     sft_dataset_dir: str = "/home/samuel/SCU_TSC/data/sft_datasets"
     sft_model_dir: str = "/home/samuel/SCU_TSC/model/sft_model"
     grpo_model_dir: str = "/home/samuel/SCU_TSC/model/grpo_model"
-    grpo_config: str = "/home/samuel/SCU_TSC/config/grpo_config.yaml"
 
 
 @dataclass

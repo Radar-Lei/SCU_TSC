@@ -8,9 +8,12 @@ GRPO训练脚本
 
 用法:
     python grpo/training.py
-    python grpo/training.py --config config/grpo_config.yaml
     python grpo/training.py --config config/training_config.yaml
     python grpo/training.py --config config/training_config.yaml --output-dir ./my_model
+
+配置文件:
+    使用 config/training_config.yaml 作为中央配置文件,包含SFT和GRPO的所有训练参数。
+    配置结构: training.grpo.* (GRPO参数), simulation.* (仿真参数), reward.* (奖励配置)
 """
 
 import os
