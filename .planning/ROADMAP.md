@@ -67,9 +67,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: 完善docker/publish.sh，添加失败检测、日志记录和进度输出
-- [ ] 03-02: 实现数据验证脚本，检查GRPO数据集格式和SUMO状态文件
-- [ ] 03-03: 将数据验证步骤集成到publish.sh训练流程中
+- [ ] 03-01-PLAN.md — 完善docker/publish.sh，添加失败检测、依赖检查和训练摘要
+- [ ] 03-02-PLAN.md — 实现数据验证脚本，检查GRPO/SFT数据集和SUMO状态文件
+- [ ] 03-03-PLAN.md — 将数据验证步骤集成到publish.sh训练流程中
 
 ### Phase 4: 测试、验证和完善
 **Goal**: 通过单元测试和集成测试验证系统各组件正确性，确保端到端流程稳定运行
