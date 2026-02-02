@@ -223,20 +223,42 @@ echo ''
 START_TIME=\$(date +%s)
 START_DATE=\$(date '+%Y-%m-%d')
 
-# Step 0: 数据验证（记录验证时间）
+# Step 0: 数据验证（仅当数据已存在时验证，首次运行则跳过）
 VALIDATION_START=\$(date +%s)
 echo -e '\033[0;34m[Step 0/5]\033[0m 验证数据...'
-if (
-    set -e
-    python -m grpo.validate_data --verbose
-); then
-    VALIDATION_END=\$(date +%s)
-    VALIDATION_DURATION=\$((VALIDATION_END - VALIDATION_START))
-    echo -e '\033[0;32m✓ 数据验证通过 (\${VALIDATION_DURATION}秒)\033[0m'
+
+# 检查数据是否已存在（用于判断是首次运行还是增量训练）
+GRPO_DATA_EXISTS=false
+SFT_DATA_EXISTS=false
+
+if [[ -d "data/grpo_datasets" ]] && [[ -n "\$(ls -A data/grpo_datasets 2>/dev/null)" ]]; then
+    GRPO_DATA_EXISTS=true
+fi
+
+if [[ -f "data/sft_datasets/sft_dataset.json" ]]; then
+    SFT_DATA_EXISTS=true
+fi
+
+if [[ "\$GRPO_DATA_EXISTS" == "true" ]] || [[ "\$SFT_DATA_EXISTS" == "true" ]]; then
+    # 数据已存在，执行验证（用于增量训练场景）
+    echo '检测到已有数据，执行数据验证...'
+    if (
+        set -e
+        python -m grpo.validate_data --verbose
+    ); then
+        VALIDATION_END=\$(date +%s)
+        VALIDATION_DURATION=\$((VALIDATION_END - VALIDATION_START))
+        echo -e '\033[0;32m✓ 数据验证通过 (\${VALIDATION_DURATION}秒)\033[0m'
+    else
+        echo -e '\033[0;31m[ERROR] 数据验证失败，终止训练\033[0m' >&2
+        echo '请修复数据问题后重试' >&2
+        exit 1
+    fi
 else
-    echo -e '\033[0;31m[ERROR] 数据验证失败，终止训练\033[0m' >&2
-    echo '请修复数据问题后重试' >&2
-    exit 1
+    # 首次运行，数据尚未生成，跳过验证
+    echo '首次运行：数据尚未生成，跳过数据验证'
+    echo -e '\033[0;33m[INFO] 数据将在Step 1/2中生成\033[0m'
+    VALIDATION_DURATION=0
 fi
 
 echo ''
