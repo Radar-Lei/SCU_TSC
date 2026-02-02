@@ -281,7 +281,11 @@ class GRPOTrainingConfig:
 
         # 动态导入MaxPressureConfig避免循环依赖
         from grpo.max_pressure import MaxPressureConfig
-        baseline_config = MaxPressureConfig(**max_pressure_data)
+
+        # 过滤掉MaxPressureConfig不支持的参数（如enabled）
+        max_pressure_params = {k: v for k, v in max_pressure_data.items()
+                               if k in ['min_green_offset', 'max_green_override', 'pressure_threshold']}
+        baseline_config = MaxPressureConfig(**max_pressure_params)
 
         return cls(
             reward=RewardChainConfig(**reward_data),
@@ -508,6 +512,7 @@ class RewardSectionConfig:
     format: FormatRewardSectionConfig = field(default_factory=FormatRewardSectionConfig)
     tsc: TSCRewardSectionConfig = field(default_factory=TSCRewardSectionConfig)
     max_pressure: MaxPressureConfig = field(default_factory=MaxPressureConfig)
+    enabled: bool = False  # baseline启用状态
 
     def __post_init__(self):
         """参数验证"""
@@ -572,11 +577,20 @@ class TrainingConfig:
                 format_data = reward_data.get('format', {})
                 tsc_data = reward_data.get('tsc', {})
                 max_pressure_data = reward_data.get('max_pressure', {})
+
+                # 过滤掉MaxPressureConfig不支持的参数（如enabled）
+                max_pressure_params = {k: v for k, v in max_pressure_data.items()
+                                       if k in ['min_green_offset', 'max_green_override', 'pressure_threshold']}
+
+                # 提取enabled字段
+                enabled = max_pressure_data.get('enabled', False)
+
                 self.reward = RewardSectionConfig(
                     chain=reward_data.get('chain', {"format_weight": 1.0, "tsc_weight": 1.0}),
                     format=FormatRewardSectionConfig(**format_data),
                     tsc=TSCRewardSectionConfig(**tsc_data),
-                    max_pressure=MaxPressureConfig(**max_pressure_data)
+                    max_pressure=MaxPressureConfig(**max_pressure_params),
+                    enabled=enabled
                 )
 
         # 验证必需参数存在
@@ -618,11 +632,20 @@ class TrainingConfig:
         format_data = reward_data.get('format', {})
         tsc_data = reward_data.get('tsc', {})
         max_pressure_data = reward_data.get('max_pressure', {})
+
+        # 过滤掉MaxPressureConfig不支持的参数（如enabled）
+        max_pressure_params = {k: v for k, v in max_pressure_data.items()
+                               if k in ['min_green_offset', 'max_green_override', 'pressure_threshold']}
+
+        # 提取enabled字段
+        enabled = max_pressure_data.get('enabled', False)
+
         reward_config = RewardSectionConfig(
             chain=reward_data.get('chain', {"format_weight": 1.0, "tsc_weight": 1.0}),
             format=FormatRewardSectionConfig(**format_data),
             tsc=TSCRewardSectionConfig(**tsc_data),
-            max_pressure=MaxPressureConfig(**max_pressure_data)
+            max_pressure=MaxPressureConfig(**max_pressure_params),
+            enabled=enabled
         )
 
         return cls(
@@ -664,10 +687,16 @@ class TrainingConfig:
             "reward_scale": self.reward.tsc.reward_scale
         }
 
+        # 构建baseline配置
+        enable_baseline = self.reward.enabled  # 从reward配置中获取enabled状态
+        baseline_config = self.reward.max_pressure
+
         return GRPOTrainingConfig(
             reward=RewardChainConfig(**reward_chain_data),
             format_reward=FormatRewardConfig(**format_reward_data),
             sumo=SUMOConfig(**sumo_data),
+            enable_baseline=enable_baseline,
+            baseline_config=baseline_config,
             **grpo_data
         )
 
