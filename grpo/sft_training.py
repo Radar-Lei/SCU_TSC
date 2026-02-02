@@ -21,19 +21,21 @@ from typing import Optional
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def load_sft_dataset(dataset_path: str):
+def load_sft_dataset(dataset_path: str, eval_percent: float = 0.05, eval_limit: int = 100):
     """
     加载SFT数据集
     
     Args:
         dataset_path: 数据集JSON或JSONL文件路径
+        eval_percent: 验证集比例 (默认 0.05 = 5%)
+        eval_limit: 验证集最大数量 (默认 100)
         
     Returns:
-        HuggingFace Dataset对象
+        train_dataset: 训练集 HuggingFace Dataset 对象
+        eval_dataset: 验证集 HuggingFace Dataset 对象 (可能为 None)
     """
     from datasets import Dataset
     
-    # 读取数据
     if dataset_path.endswith('.jsonl'):
         with open(dataset_path, 'r', encoding='utf-8') as f:
             data = [json.loads(line) for line in f]
@@ -41,11 +43,24 @@ def load_sft_dataset(dataset_path: str):
         with open(dataset_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
     
-    # 转换为Dataset格式
     dataset = Dataset.from_list(data)
     print(f"加载了 {len(dataset)} 条SFT数据")
     
-    return dataset
+    if eval_percent <= 0 or eval_percent >= 1:
+        return dataset, None
+    
+    eval_count = max(1, min(int(len(dataset) * eval_percent), eval_limit))
+    train_count = len(dataset) - eval_count
+    
+    if eval_count < 1:
+        return dataset, None
+    
+    train_data = dataset.select(range(train_count))
+    eval_data = dataset.select(range(train_count, len(dataset)))
+    
+    print(f"划分训练集: {len(train_data)} 条, 验证集: {len(eval_data)} 条")
+    
+    return train_data, eval_data
 
 
 def format_for_training(example, tokenizer):
@@ -72,6 +87,9 @@ def train_sft(
     max_steps: Optional[int] = None,
     logging_steps: int = 5,
     save_steps: int = 50,
+    eval_percent: float = 0.05,
+    eval_limit: int = 100,
+    eval_steps: int = 30,
 ):
     """
     执行SFT训练
@@ -88,6 +106,9 @@ def train_sft(
         max_steps: 最大训练步数（可选，用于调试）
         logging_steps: 日志记录间隔
         save_steps: 模型保存间隔
+        eval_percent: 验证集比例 (默认 0.05 = 5%)
+        eval_limit: 验证集最大数量 (默认 100)
+        eval_steps: 评估步数间隔 (默认 30)
     """
     print("=" * 60)
     print("SFT训练")
@@ -100,6 +121,8 @@ def train_sft(
     print(f"批次大小: {batch_size}")
     print(f"学习率: {learning_rate}")
     print(f"最大步数: {max_steps or '无限制'}")
+    print(f"验证集比例: {eval_percent * 100}% (上限 {eval_limit} 条)")
+    print(f"评估间隔: {eval_steps} 步")
     print("=" * 60)
     
     # 导入依赖
@@ -132,14 +155,22 @@ def train_sft(
     
     # 加载数据集
     print("\n正在加载数据集...")
-    dataset = load_sft_dataset(dataset_path)
+    train_dataset, eval_dataset = load_sft_dataset(dataset_path, eval_percent, eval_limit)
     
-    # 格式化数据
-    print("正在格式化数据...")
-    dataset = dataset.map(
+    # 格式化训练数据
+    print("正在格式化训练数据...")
+    train_dataset = train_dataset.map(
         lambda x: format_for_training(x, tokenizer),
-        remove_columns=dataset.column_names
+        remove_columns=train_dataset.column_names
     )
+    
+    # 格式化验证数据（如果有）
+    if eval_dataset is not None:
+        print("正在格式化验证数据...")
+        eval_dataset = eval_dataset.map(
+            lambda x: format_for_training(x, tokenizer),
+            remove_columns=eval_dataset.column_names
+        )
     
     # 配置训练参数
     training_args = SFTConfig(
@@ -152,6 +183,8 @@ def train_sft(
         max_steps=max_steps if max_steps else -1,
         learning_rate=learning_rate,
         logging_steps=logging_steps,
+        eval_strategy="steps" if eval_dataset is not None else "no",
+        eval_steps=eval_steps,
         save_steps=save_steps,
         optim="adamw_8bit",
         weight_decay=0.001,
@@ -166,7 +199,8 @@ def train_sft(
     trainer = SFTTrainer(
         model=model,
         tokenizer=tokenizer,
-        train_dataset=dataset,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         args=training_args,
     )
     
@@ -263,6 +297,24 @@ def parse_args():
         default=50,
         help="模型保存间隔"
     )
+    parser.add_argument(
+        "--eval-percent",
+        type=float,
+        default=0.05,
+        help="验证集比例 (默认 0.05 = 5%)"
+    )
+    parser.add_argument(
+        "--eval-limit",
+        type=int,
+        default=100,
+        help="验证集最大数量 (默认 100)"
+    )
+    parser.add_argument(
+        "--eval-steps",
+        type=int,
+        default=30,
+        help="评估步数间隔 (默认 30)"
+    )
     
     return parser.parse_args()
 
@@ -282,6 +334,9 @@ def main():
         max_steps=args.max_steps,
         logging_steps=args.logging_steps,
         save_steps=args.save_steps,
+        eval_percent=args.eval_percent,
+        eval_limit=args.eval_limit,
+        eval_steps=args.eval_steps,
     )
 
 

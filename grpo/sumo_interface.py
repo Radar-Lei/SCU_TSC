@@ -119,12 +119,13 @@ class SUMOInterface:
                 print(f"解析配置文件失败: {e}")
         return None
     
-    def start(self, warmup_steps: int = 0) -> bool:
+    def start(self, warmup_steps: int = 0, port: Optional[int] = None) -> bool:
         """
         启动SUMO仿真
 
         Args:
             warmup_steps: 预热步数
+            port: TraCI端口（None则使用实例的port或随机选择）
 
         Returns:
             是否启动成功
@@ -150,21 +151,23 @@ class SUMOInterface:
             ]
 
             # 启动SUMO（带重试）
-            max_retries = 10 if self.port is None else 3
+            # 使用传入的port参数，或实例的port
+            use_port = port if port is not None else self.port
+            max_retries = 10 if use_port is None else 3
             for attempt in range(max_retries):
                 try:
                     # 如果端口未指定，使用find_available_port查找
-                    port = self.port
-                    if port is None:
-                        port = find_available_port()
-                        if port is None:
+                    actual_port = use_port
+                    if actual_port is None:
+                        actual_port = find_available_port()
+                        if actual_port is None:
                             print("无法找到可用端口")
                             return False
 
                     if self.verbose:
-                        print(f"启动SUMO，端口: {port} (尝试 {attempt+1}/{max_retries})")
+                        print(f"启动SUMO，端口: {actual_port} (尝试 {attempt+1}/{max_retries})")
 
-                    traci.start(sumo_cmd, port=port)
+                    traci.start(sumo_cmd, port=actual_port)
                     self.connected = True
 
                     # 执行预热

@@ -34,7 +34,7 @@ docker run \
   --gpus all \
   --name "${CONTAINER_NAME}" \
   --shm-size=8GB \
-  --user "$(id -u):$(id -g)" \
+  --user "$(id -u):$(id -g)" \ 
   --entrypoint /bin/bash \
   -v "${PROJECT_DIR}:${CONTAINER_WORKDIR}:rw" \
   -w "${CONTAINER_WORKDIR}" \

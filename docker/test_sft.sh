@@ -77,6 +77,7 @@ docker run \
   --gpus all \
   --name "${CONTAINER_NAME}" \
   --shm-size=16GB \
+  --user "$(id -u):$(id -g)" \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \
   --entrypoint /bin/bash \
