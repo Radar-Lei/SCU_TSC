@@ -170,7 +170,12 @@ def compute_reward(
     state_file: str,
     chain_config: RewardChainConfig,
     sumo_config: Any,
-    tsc_reward_fn: Callable = None
+    tsc_reward_fn: Callable = None,
+    green_elapsed: float = None,
+    min_green: float = None,
+    max_green: float = None,
+    enable_baseline: bool = False,
+    mp_config: Any = None
 ) -> Tuple[float, Dict[str, Any]]:
     """
     计算单个样本的reward
@@ -182,6 +187,11 @@ def compute_reward(
         chain_config: Reward函数链配置
         sumo_config: SUMO配置
         tsc_reward_fn: TSC reward函数（可选，用于测试）
+        green_elapsed: 当前绿灯已持续时间（秒，可选，用于baseline计算）
+        min_green: 最小绿灯时间（秒，可选，用于baseline计算）
+        max_green: 最大绿灯时间（秒，可选，用于baseline计算）
+        enable_baseline: 是否启用Max Pressure baseline比较
+        mp_config: Max Pressure配置对象
 
     Returns:
         (final_reward, info_dict)
@@ -203,7 +213,41 @@ def compute_reward(
             "reason": "invalid_format"
         }
 
-    # 3. 计算TSC reward
+    # 3. 计算Max Pressure baseline（如果启用）
+    baseline_info = {}
+    if enable_baseline and all(x is not None for x in [green_elapsed, min_green, max_green]):
+        try:
+            from .max_pressure import max_pressure_decision_from_prompt, MaxPressureConfig
+
+            # 使用提供的配置或默认配置
+            baseline_config = mp_config if mp_config is not None else MaxPressureConfig()
+
+            # 调用Max Pressure算法获取baseline决策
+            baseline_decision = max_pressure_decision_from_prompt(
+                prompt=prompt,
+                green_elapsed=green_elapsed,
+                min_green=min_green,
+                max_green=max_green,
+                config=baseline_config
+            )
+
+            # 提取模型决策
+            model_decision = format_result.extracted_decision
+
+            # 比较baseline决策与模型决策
+            matches_baseline = None
+            if model_decision is not None:
+                matches_baseline = (model_decision == baseline_decision)
+
+            baseline_info = {
+                "baseline_decision": baseline_decision,
+                "model_decision": model_decision,
+                "matches_baseline": matches_baseline
+            }
+        except (ValueError, KeyError, json.JSONDecodeError) as e:
+            baseline_info = {"baseline_error": str(e)}
+
+    # 4. 计算TSC reward
     if tsc_reward_fn is None:
         from .sumo_reward import calculate_tsc_reward_single
         tsc_reward_fn = calculate_tsc_reward_single
@@ -212,27 +256,38 @@ def compute_reward(
     decision = format_result.extracted_decision
     if decision is None:
         # 无法提取决策，返回format reward
-        return format_result.reward, {
+        info_dict = {
             "format_reward": format_result.reward,
             "tsc_reward": 0.0,
             "reason": "no_decision_extracted"
         }
+        # 合并baseline信息
+        if baseline_info:
+            info_dict.update(baseline_info)
+        return format_result.reward, info_dict
 
     tsc_result = tsc_reward_fn(state_file, prompt, decision, sumo_config)
     tsc_reward = tsc_result.reward if tsc_result.success else 0.0
 
-    # 4. 组合reward
+    # 5. 组合reward
     final_reward = (
         chain_config.format_weight * format_result.reward +
         chain_config.tsc_weight * tsc_reward
     )
 
-    return final_reward, {
+    # 6. 构建返回信息
+    info_dict = {
         "format_reward": format_result.reward,
         "tsc_reward": tsc_reward,
         "is_strict": format_result.is_strict,
         "is_partial": format_result.is_partial,
     }
+
+    # 合并baseline信息
+    if baseline_info:
+        info_dict.update(baseline_info)
+
+    return final_reward, info_dict
 
 
 def batch_compute_reward(
