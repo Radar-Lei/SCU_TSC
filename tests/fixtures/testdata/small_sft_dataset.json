@@ -1,0 +1,362 @@
+[
+  {
+    "id": "test_test_scenario_000030",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_26288475\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 23.591386053989623, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 9.129236509403452, \"avg_queue_length\": 40.070830086113226, \"avg_speed\": 10.013665988795296}, \"1\": {\"avg_queue_veh\": 19.75784906132896, \"avg_queue_length\": 29.772615923470987, \"avg_speed\": 14.25059412664734}, \"2\": {\"avg_queue_veh\": 17.82851851620874, \"avg_queue_length\": 30.632616138088142, \"avg_speed\": 10.789109419139507}, \"3\": {\"avg_queue_veh\": 10.09556329648804, \"avg_queue_length\": 41.528458486070754, \"avg_speed\": 8.218079259162426}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_26288475\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 23.591386053989623, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 9.129236509403452, \"avg_queue_length\": 40.070830086113226, \"avg_speed\": 10.013665988795296}, \"1\": {\"avg_queue_veh\": 19.75784906132896, \"avg_queue_length\": 29.772615923470987, \"avg_speed\": 14.25059412664734}, \"2\": {\"avg_queue_veh\": 17.82851851620874, \"avg_queue_length\": 30.632616138088142, \"avg_speed\": 10.789109419139507}, \"3\": {\"avg_queue_veh\": 10.09556329648804, \"avg_queue_length\": 41.528458486070754, \"avg_speed\": 8.218079259162426}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"yes\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000022",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_41774346\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 14.563543064923358, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 17.29211392439928, \"avg_queue_length\": 48.81030164654814, \"avg_speed\": 12.161575799105954}, \"1\": {\"avg_queue_veh\": 17.62832409326649, \"avg_queue_length\": 1.2393180949094362, \"avg_speed\": 11.048467076326231}, \"2\": {\"avg_queue_veh\": 6.643709358928573, \"avg_queue_length\": 46.54079430241628, \"avg_speed\": 12.033527084057084}, \"3\": {\"avg_queue_veh\": 17.28128056750559, \"avg_queue_length\": 40.53746582871945, \"avg_speed\": 4.002085643917081}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_41774346\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 14.563543064923358, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 17.29211392439928, \"avg_queue_length\": 48.81030164654814, \"avg_speed\": 12.161575799105954}, \"1\": {\"avg_queue_veh\": 17.62832409326649, \"avg_queue_length\": 1.2393180949094362, \"avg_speed\": 11.048467076326231}, \"2\": {\"avg_queue_veh\": 6.643709358928573, \"avg_queue_length\": 46.54079430241628, \"avg_speed\": 12.033527084057084}, \"3\": {\"avg_queue_veh\": 17.28128056750559, \"avg_queue_length\": 40.53746582871945, \"avg_speed\": 4.002085643917081}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"no\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000026",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_99038359\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 15.151879218954072, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 16.96030559012671, \"avg_queue_length\": 35.98771315069751, \"avg_speed\": 4.5048340231689625}, \"1\": {\"avg_queue_veh\": 6.1856932441730645, \"avg_queue_length\": 20.41964543096084, \"avg_speed\": 6.036005805865869}, \"2\": {\"avg_queue_veh\": 5.913104050518941, \"avg_queue_length\": 6.36438995295766, \"avg_speed\": 6.306695006593625}, \"3\": {\"avg_queue_veh\": 18.80727341460366, \"avg_queue_length\": 33.86589726363665, \"avg_speed\": 13.542083185988739}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_99038359\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 15.151879218954072, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 16.96030559012671, \"avg_queue_length\": 35.98771315069751, \"avg_speed\": 4.5048340231689625}, \"1\": {\"avg_queue_veh\": 6.1856932441730645, \"avg_queue_length\": 20.41964543096084, \"avg_speed\": 6.036005805865869}, \"2\": {\"avg_queue_veh\": 5.913104050518941, \"avg_queue_length\": 6.36438995295766, \"avg_speed\": 6.306695006593625}, \"3\": {\"avg_queue_veh\": 18.80727341460366, \"avg_queue_length\": 33.86589726363665, \"avg_speed\": 13.542083185988739}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"yes\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000021",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_15614174\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 28.144095564238913, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 6.165166998602674, \"avg_queue_length\": 44.9490744371295, \"avg_speed\": 11.941834573320625}, \"1\": {\"avg_queue_veh\": 17.214051640018056, \"avg_queue_length\": 44.94623182632373, \"avg_speed\": 3.1511480750963106}, \"2\": {\"avg_queue_veh\": 4.990594784458489, \"avg_queue_length\": 5.139681083589282, \"avg_speed\": 11.70174362807164}, \"3\": {\"avg_queue_veh\": 17.68269402902018, \"avg_queue_length\": 20.318869491605838, \"avg_speed\": 9.309922652260692}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_15614174\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 28.144095564238913, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 6.165166998602674, \"avg_queue_length\": 44.9490744371295, \"avg_speed\": 11.941834573320625}, \"1\": {\"avg_queue_veh\": 17.214051640018056, \"avg_queue_length\": 44.94623182632373, \"avg_speed\": 3.1511480750963106}, \"2\": {\"avg_queue_veh\": 4.990594784458489, \"avg_queue_length\": 5.139681083589282, \"avg_speed\": 11.70174362807164}, \"3\": {\"avg_queue_veh\": 17.68269402902018, \"avg_queue_length\": 20.318869491605838, \"avg_speed\": 9.309922652260692}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"no\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000020",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_27558317\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 15.744667822019293, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 12.742267546027593, \"avg_queue_length\": 13.09776312171741, \"avg_speed\": 11.118463625218963}, \"1\": {\"avg_queue_veh\": 11.033608422527825, \"avg_queue_length\": 21.384345949033968, \"avg_speed\": 0.14504549412509948}, \"2\": {\"avg_queue_veh\": 1.5048772014753409, \"avg_queue_length\": 44.15531966500715, \"avg_speed\": 13.558928573398397}, \"3\": {\"avg_queue_veh\": 10.911805784110447, \"avg_queue_length\": 41.72975099430084, \"avg_speed\": 8.73764349734691}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_27558317\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 15.744667822019293, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 12.742267546027593, \"avg_queue_length\": 13.09776312171741, \"avg_speed\": 11.118463625218963}, \"1\": {\"avg_queue_veh\": 11.033608422527825, \"avg_queue_length\": 21.384345949033968, \"avg_speed\": 0.14504549412509948}, \"2\": {\"avg_queue_veh\": 1.5048772014753409, \"avg_queue_length\": 44.15531966500715, \"avg_speed\": 13.558928573398397}, \"3\": {\"avg_queue_veh\": 10.911805784110447, \"avg_queue_length\": 41.72975099430084, \"avg_speed\": 8.73764349734691}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"no\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000042",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_83871890\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 29.512765761562825, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 6.615825943918603, \"avg_queue_length\": 35.14274710928845, \"avg_speed\": 4.063746404642945}, \"1\": {\"avg_queue_veh\": 5.02807352401883, \"avg_queue_length\": 6.032794237615291, \"avg_speed\": 2.888764401772761}, \"2\": {\"avg_queue_veh\": 2.3910948251010566, \"avg_queue_length\": 26.793198269187492, \"avg_speed\": 11.432844142261544}, \"3\": {\"avg_queue_veh\": 3.7029968487532394, \"avg_queue_length\": 10.819231993930284, \"avg_speed\": 7.26297880819063}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_83871890\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 29.512765761562825, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 6.615825943918603, \"avg_queue_length\": 35.14274710928845, \"avg_speed\": 4.063746404642945}, \"1\": {\"avg_queue_veh\": 5.02807352401883, \"avg_queue_length\": 6.032794237615291, \"avg_speed\": 2.888764401772761}, \"2\": {\"avg_queue_veh\": 2.3910948251010566, \"avg_queue_length\": 26.793198269187492, \"avg_speed\": 11.432844142261544}, \"3\": {\"avg_queue_veh\": 3.7029968487532394, \"avg_queue_length\": 10.819231993930284, \"avg_speed\": 7.26297880819063}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"yes\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000006",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_16323852\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 22.04275922566437, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 17.222058193333318, \"avg_queue_length\": 7.642065967413053, \"avg_speed\": 2.399730025836754}, \"1\": {\"avg_queue_veh\": 13.609624269926542, \"avg_queue_length\": 29.82045153659869, \"avg_speed\": 5.7715096751175015}, \"2\": {\"avg_queue_veh\": 11.917768567222563, \"avg_queue_length\": 23.402494389233862, \"avg_speed\": 3.7712117997271974}, \"3\": {\"avg_queue_veh\": 11.06451792430575, \"avg_queue_length\": 47.12154306899049, \"avg_speed\": 10.204251153847778}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_16323852\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 22.04275922566437, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 17.222058193333318, \"avg_queue_length\": 7.642065967413053, \"avg_speed\": 2.399730025836754}, \"1\": {\"avg_queue_veh\": 13.609624269926542, \"avg_queue_length\": 29.82045153659869, \"avg_speed\": 5.7715096751175015}, \"2\": {\"avg_queue_veh\": 11.917768567222563, \"avg_queue_length\": 23.402494389233862, \"avg_speed\": 3.7712117997271974}, \"3\": {\"avg_queue_veh\": 11.06451792430575, \"avg_queue_length\": 47.12154306899049, \"avg_speed\": 10.204251153847778}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"yes\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000010",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_82383095\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 5.179770974627338, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 15.10530393271611, \"avg_queue_length\": 34.493381604981074, \"avg_speed\": 10.694234592286827}, \"1\": {\"avg_queue_veh\": 7.979845999948583, \"avg_queue_length\": 33.584347981914156, \"avg_speed\": 5.601307537939407}, \"2\": {\"avg_queue_veh\": 17.99228169285891, \"avg_queue_length\": 22.574307069556486, \"avg_speed\": 3.718584204990119}, \"3\": {\"avg_queue_veh\": 1.2805179265268984, \"avg_queue_length\": 1.051713000352944, \"avg_speed\": 8.308822836367197}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_82383095\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 5.179770974627338, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 15.10530393271611, \"avg_queue_length\": 34.493381604981074, \"avg_speed\": 10.694234592286827}, \"1\": {\"avg_queue_veh\": 7.979845999948583, \"avg_queue_length\": 33.584347981914156, \"avg_speed\": 5.601307537939407}, \"2\": {\"avg_queue_veh\": 17.99228169285891, \"avg_queue_length\": 22.574307069556486, \"avg_speed\": 3.718584204990119}, \"3\": {\"avg_queue_veh\": 1.2805179265268984, \"avg_queue_length\": 1.051713000352944, \"avg_speed\": 8.308822836367197}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"no\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000046",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_37888820\", \"state\": {\"current_phase_id\": 3, \"green_elapsed\": 6.779494003836982, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 12.510300608132063, \"avg_queue_length\": 13.232306264500371, \"avg_speed\": 1.2178119820047644}, \"1\": {\"avg_queue_veh\": 4.7973035534938475, \"avg_queue_length\": 27.599612278887953, \"avg_speed\": 2.347989231647072}, \"2\": {\"avg_queue_veh\": 8.170351453200533, \"avg_queue_length\": 34.46855678923845, \"avg_speed\": 7.048687185115288}, \"3\": {\"avg_queue_veh\": 0.6527971076184858, \"avg_queue_length\": 14.405244479684464, \"avg_speed\": 4.240775596684316}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_37888820\", \"state\": {\"current_phase_id\": 3, \"green_elapsed\": 6.779494003836982, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 12.510300608132063, \"avg_queue_length\": 13.232306264500371, \"avg_speed\": 1.2178119820047644}, \"1\": {\"avg_queue_veh\": 4.7973035534938475, \"avg_queue_length\": 27.599612278887953, \"avg_speed\": 2.347989231647072}, \"2\": {\"avg_queue_veh\": 8.170351453200533, \"avg_queue_length\": 34.46855678923845, \"avg_speed\": 7.048687185115288}, \"3\": {\"avg_queue_veh\": 0.6527971076184858, \"avg_queue_length\": 14.405244479684464, \"avg_speed\": 4.240775596684316}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"no\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000047",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_41329612\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 19.876100932985118, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 18.478220889650974, \"avg_queue_length\": 39.39140133233657, \"avg_speed\": 9.375870107463328}, \"1\": {\"avg_queue_veh\": 13.223660857067356, \"avg_queue_length\": 46.68342292227566, \"avg_speed\": 6.377084491563175}, \"2\": {\"avg_queue_veh\": 10.891247574211572, \"avg_queue_length\": 32.381736170124036, \"avg_speed\": 13.626171678189092}, \"3\": {\"avg_queue_veh\": 16.532623193001193, \"avg_queue_length\": 3.570491842790707, \"avg_speed\": 2.4888418383108704}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_41329612\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 19.876100932985118, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 18.478220889650974, \"avg_queue_length\": 39.39140133233657, \"avg_speed\": 9.375870107463328}, \"1\": {\"avg_queue_veh\": 13.223660857067356, \"avg_queue_length\": 46.68342292227566, \"avg_speed\": 6.377084491563175}, \"2\": {\"avg_queue_veh\": 10.891247574211572, \"avg_queue_length\": 32.381736170124036, \"avg_speed\": 13.626171678189092}, \"3\": {\"avg_queue_veh\": 16.532623193001193, \"avg_queue_length\": 3.570491842790707, \"avg_speed\": 2.4888418383108704}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"no\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000031",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_73709724\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 8.459351537903892, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 9.001395144938162, \"avg_queue_length\": 37.588839325025575, \"avg_speed\": 12.597943317628811}, \"1\": {\"avg_queue_veh\": 5.54622706261481, \"avg_queue_length\": 38.883741766698584, \"avg_speed\": 7.268955256054002}, \"2\": {\"avg_queue_veh\": 4.784917276292657, \"avg_queue_length\": 21.993629663245134, \"avg_speed\": 10.703172939165846}, \"3\": {\"avg_queue_veh\": 4.689871560292707, \"avg_queue_length\": 16.7923768310657, \"avg_speed\": 13.395402491854751}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_73709724\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 8.459351537903892, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 9.001395144938162, \"avg_queue_length\": 37.588839325025575, \"avg_speed\": 12.597943317628811}, \"1\": {\"avg_queue_veh\": 5.54622706261481, \"avg_queue_length\": 38.883741766698584, \"avg_speed\": 7.268955256054002}, \"2\": {\"avg_queue_veh\": 4.784917276292657, \"avg_queue_length\": 21.993629663245134, \"avg_speed\": 10.703172939165846}, \"3\": {\"avg_queue_veh\": 4.689871560292707, \"avg_queue_length\": 16.7923768310657, \"avg_speed\": 13.395402491854751}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"yes\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000018",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_31172421\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 23.56041709952497, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 8.763691460154197, \"avg_queue_length\": 27.16089811307934, \"avg_speed\": 4.537757144683348}, \"1\": {\"avg_queue_veh\": 19.677066205029647, \"avg_queue_length\": 40.35499716325712, \"avg_speed\": 7.934110389034051}, \"2\": {\"avg_queue_veh\": 13.35726407425167, \"avg_queue_length\": 27.73011412448389, \"avg_speed\": 13.976340591541161}, \"3\": {\"avg_queue_veh\": 2.07173003836423, \"avg_queue_length\": 43.906348248679606, \"avg_speed\": 3.9669888223069147}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_31172421\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 23.56041709952497, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 8.763691460154197, \"avg_queue_length\": 27.16089811307934, \"avg_speed\": 4.537757144683348}, \"1\": {\"avg_queue_veh\": 19.677066205029647, \"avg_queue_length\": 40.35499716325712, \"avg_speed\": 7.934110389034051}, \"2\": {\"avg_queue_veh\": 13.35726407425167, \"avg_queue_length\": 27.73011412448389, \"avg_speed\": 13.976340591541161}, \"3\": {\"avg_queue_veh\": 2.07173003836423, \"avg_queue_length\": 43.906348248679606, \"avg_speed\": 3.9669888223069147}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"yes\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000025",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_78642041\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 20.578885248660228, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 2.312915680586609, \"avg_queue_length\": 44.97523664555998, \"avg_speed\": 2.851181617534441}, \"1\": {\"avg_queue_veh\": 0.8877306742646218, \"avg_queue_length\": 21.802875772748614, \"avg_speed\": 7.798805228498781}, \"2\": {\"avg_queue_veh\": 16.130217394002077, \"avg_queue_length\": 34.34285734572634, \"avg_speed\": 14.1039468059633}, \"3\": {\"avg_queue_veh\": 14.740753869806007, \"avg_queue_length\": 9.851756455086718, \"avg_speed\": 6.469460994374804}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_78642041\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 20.578885248660228, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 2.312915680586609, \"avg_queue_length\": 44.97523664555998, \"avg_speed\": 2.851181617534441}, \"1\": {\"avg_queue_veh\": 0.8877306742646218, \"avg_queue_length\": 21.802875772748614, \"avg_speed\": 7.798805228498781}, \"2\": {\"avg_queue_veh\": 16.130217394002077, \"avg_queue_length\": 34.34285734572634, \"avg_speed\": 14.1039468059633}, \"3\": {\"avg_queue_veh\": 14.740753869806007, \"avg_queue_length\": 9.851756455086718, \"avg_speed\": 6.469460994374804}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"no\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000035",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_60885459\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 28.74029331789972, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 5.56513231277612, \"avg_queue_length\": 47.560205993028084, \"avg_speed\": 6.323472401381081}, \"1\": {\"avg_queue_veh\": 16.698218298242423, \"avg_queue_length\": 23.515341810652345, \"avg_speed\": 11.235363916242761}, \"2\": {\"avg_queue_veh\": 1.0417121648651095, \"avg_queue_length\": 47.59598461909605, \"avg_speed\": 3.3633324857962226}, \"3\": {\"avg_queue_veh\": 1.3723674090553883, \"avg_queue_length\": 47.864280138818415, \"avg_speed\": 0.6038720631114985}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_60885459\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 28.74029331789972, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 5.56513231277612, \"avg_queue_length\": 47.560205993028084, \"avg_speed\": 6.323472401381081}, \"1\": {\"avg_queue_veh\": 16.698218298242423, \"avg_queue_length\": 23.515341810652345, \"avg_speed\": 11.235363916242761}, \"2\": {\"avg_queue_veh\": 1.0417121648651095, \"avg_queue_length\": 47.59598461909605, \"avg_speed\": 3.3633324857962226}, \"3\": {\"avg_queue_veh\": 1.3723674090553883, \"avg_queue_length\": 47.864280138818415, \"avg_speed\": 0.6038720631114985}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"yes\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000002",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_91030736\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 24.326708519717297, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 5.290417344440261, \"avg_queue_length\": 2.1725221461548596, \"avg_speed\": 6.891373195077638}, \"1\": {\"avg_queue_veh\": 2.496523257064187, \"avg_queue_length\": 46.114768601407995, \"avg_speed\": 1.1820029711768725}, \"2\": {\"avg_queue_veh\": 5.863565628141858, \"avg_queue_length\": 31.431989974722168, \"avg_speed\": 13.281776219052102}, \"3\": {\"avg_queue_veh\": 7.23270052333953, \"avg_queue_length\": 9.614429512832995, \"avg_speed\": 1.0433272323561138}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_91030736\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 24.326708519717297, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 5.290417344440261, \"avg_queue_length\": 2.1725221461548596, \"avg_speed\": 6.891373195077638}, \"1\": {\"avg_queue_veh\": 2.496523257064187, \"avg_queue_length\": 46.114768601407995, \"avg_speed\": 1.1820029711768725}, \"2\": {\"avg_queue_veh\": 5.863565628141858, \"avg_queue_length\": 31.431989974722168, \"avg_speed\": 13.281776219052102}, \"3\": {\"avg_queue_veh\": 7.23270052333953, \"avg_queue_length\": 9.614429512832995, \"avg_speed\": 1.0433272323561138}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"no\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000029",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_61536717\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 27.936750361386004, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 9.887543380208738, \"avg_queue_length\": 12.199221978921942, \"avg_speed\": 9.840870166676762}, \"1\": {\"avg_queue_veh\": 0.11089636276063519, \"avg_queue_length\": 37.54822383092365, \"avg_speed\": 11.550692828610376}, \"2\": {\"avg_queue_veh\": 2.1317459312707787, \"avg_queue_length\": 21.257309697136705, \"avg_speed\": 2.638300225597975}, \"3\": {\"avg_queue_veh\": 19.159320845590795, \"avg_queue_length\": 25.89788752218704, \"avg_speed\": 0.7532757771096138}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_61536717\", \"state\": {\"current_phase_id\": 1, \"green_elapsed\": 27.936750361386004, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 9.887543380208738, \"avg_queue_length\": 12.199221978921942, \"avg_speed\": 9.840870166676762}, \"1\": {\"avg_queue_veh\": 0.11089636276063519, \"avg_queue_length\": 37.54822383092365, \"avg_speed\": 11.550692828610376}, \"2\": {\"avg_queue_veh\": 2.1317459312707787, \"avg_queue_length\": 21.257309697136705, \"avg_speed\": 2.638300225597975}, \"3\": {\"avg_queue_veh\": 19.159320845590795, \"avg_queue_length\": 25.89788752218704, \"avg_speed\": 0.7532757771096138}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"no\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000005",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_77005685\", \"state\": {\"current_phase_id\": 3, \"green_elapsed\": 7.272735304344847, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 7.912638021213285, \"avg_queue_length\": 45.72737948702718, \"avg_speed\": 6.882777788810982}, \"1\": {\"avg_queue_veh\": 5.297603329961049, \"avg_queue_length\": 12.331375384699172, \"avg_speed\": 8.420522012447261}, \"2\": {\"avg_queue_veh\": 5.254832170458705, \"avg_queue_length\": 29.229299511177025, \"avg_speed\": 13.467343254037155}, \"3\": {\"avg_queue_veh\": 7.988010102807945, \"avg_queue_length\": 10.966037957864167, \"avg_speed\": 14.963064097426654}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_77005685\", \"state\": {\"current_phase_id\": 3, \"green_elapsed\": 7.272735304344847, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 7.912638021213285, \"avg_queue_length\": 45.72737948702718, \"avg_speed\": 6.882777788810982}, \"1\": {\"avg_queue_veh\": 5.297603329961049, \"avg_queue_length\": 12.331375384699172, \"avg_speed\": 8.420522012447261}, \"2\": {\"avg_queue_veh\": 5.254832170458705, \"avg_queue_length\": 29.229299511177025, \"avg_speed\": 13.467343254037155}, \"3\": {\"avg_queue_veh\": 7.988010102807945, \"avg_queue_length\": 10.966037957864167, \"avg_speed\": 14.963064097426654}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"no\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000045",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_43311626\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 28.68975500813445, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 2.3690312442292316, \"avg_queue_length\": 38.22217226630971, \"avg_speed\": 9.094764768644442}, \"1\": {\"avg_queue_veh\": 15.814816596868388, \"avg_queue_length\": 11.284356853251731, \"avg_speed\": 7.838588026953268}, \"2\": {\"avg_queue_veh\": 9.010289297775085, \"avg_queue_length\": 22.136050200966416, \"avg_speed\": 12.902499987392702}, \"3\": {\"avg_queue_veh\": 19.80062520933596, \"avg_queue_length\": 15.26901221596802, \"avg_speed\": 9.315409816082228}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_43311626\", \"state\": {\"current_phase_id\": 0, \"green_elapsed\": 28.68975500813445, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 2.3690312442292316, \"avg_queue_length\": 38.22217226630971, \"avg_speed\": 9.094764768644442}, \"1\": {\"avg_queue_veh\": 15.814816596868388, \"avg_queue_length\": 11.284356853251731, \"avg_speed\": 7.838588026953268}, \"2\": {\"avg_queue_veh\": 9.010289297775085, \"avg_queue_length\": 22.136050200966416, \"avg_speed\": 12.902499987392702}, \"3\": {\"avg_queue_veh\": 19.80062520933596, \"avg_queue_length\": 15.26901221596802, \"avg_speed\": 9.315409816082228}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"yes\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000016",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_41568532\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 14.894646169781362, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 8.07551102636555, \"avg_queue_length\": 47.079806361454466, \"avg_speed\": 8.545131152072774}, \"1\": {\"avg_queue_veh\": 11.578381150144212, \"avg_queue_length\": 1.9870831144532197, \"avg_speed\": 1.2297510824231321}, \"2\": {\"avg_queue_veh\": 13.14746328945045, \"avg_queue_length\": 28.261346192204474, \"avg_speed\": 4.745547689650907}, \"3\": {\"avg_queue_veh\": 5.215313912072657, \"avg_queue_length\": 33.48629873849146, \"avg_speed\": 4.712757941933641}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_41568532\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 14.894646169781362, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 8.07551102636555, \"avg_queue_length\": 47.079806361454466, \"avg_speed\": 8.545131152072774}, \"1\": {\"avg_queue_veh\": 11.578381150144212, \"avg_queue_length\": 1.9870831144532197, \"avg_speed\": 1.2297510824231321}, \"2\": {\"avg_queue_veh\": 13.14746328945045, \"avg_queue_length\": 28.261346192204474, \"avg_speed\": 4.745547689650907}, \"3\": {\"avg_queue_veh\": 5.215313912072657, \"avg_queue_length\": 33.48629873849146, \"avg_speed\": 4.712757941933641}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"yes\"}"
+      }
+    ]
+  },
+  {
+    "id": "test_test_scenario_000044",
+    "scenario": "test_scenario",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是交通信号控制优化专家。\n\n你将收到一个路口在当前时刻的相位排队信息，需要判断是否延长\"当前绿灯相位\"。\n\n【extend_decision_input_json】\n{\"crossing_id\": \"cluster_73001391\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 7.129522709905752, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 9.57428417212796, \"avg_queue_length\": 17.035296628014617, \"avg_speed\": 14.482464647074421}, \"1\": {\"avg_queue_veh\": 5.049567809859452, \"avg_queue_length\": 43.08614823137566, \"avg_speed\": 1.711307110873868}, \"2\": {\"avg_queue_veh\": 1.3068687022786496, \"avg_queue_length\": 24.5873280145534, \"avg_speed\": 8.65531734706227}, \"3\": {\"avg_queue_veh\": 13.729020365120332, \"avg_queue_length\": 7.586350347547821, \"avg_speed\": 12.167131144125714}}}, \"phase_order\": [0, 1, 2, 3]}\n【/extend_decision_input_json】\n\n字段含义（仅说明含义）：\n- phase_order：相位执行顺序，循环执行；不可跳相、不可重排，切换相位只能切换到当前相位的下一个相位。\n- state.current_phase_id：当前正在放行的相位 ID。\n- state.phase_metrics_by_id[phase_id].avg_queue_veh：该相位绿灯所控制车道在当前时刻的平均排队车辆数（辆）。\n\n任务（必须完成）：\n- 基于输入 JSON 的 state 与 phase_order，判断是否需要延长当前绿灯相位。\n\n决策要求（必须遵守）：\n1) 你必须显式使用 avg_queue_veh 做决策：至少比较\"当前相位\"与\"其他相位\"的 avg_queue_veh 相对大小后再给出结论。\n2) 延长是一个\"相对需求\"决策：\n   - 当前相位 avg_queue_veh 较大，且明显高于多数其他相位时，更倾向延长；\n   - 若存在一个或多个后续相位 avg_queue_veh 明显更大（例如显著高于当前相位），更倾向不延长以尽快切换；\n3) 不得编造任何不存在的观测数据；只能使用输入 JSON 中给出的字段与数值。\n\n输出要求（必须严格遵守）：\n- 只输出最终 JSON（不要任何说明、不要 Markdown、不要额外文本、不要输出推理过程）。\n- JSON 顶层必须是对象，且仅包含一个字段：\n  {\"extend\": \"<yes/no>\"}\n- extend 的取值只能是\"yes\"或\"no\"，不允许输出其它字段或其它取值。\n"
+      },
+      {
+        "role": "user",
+        "content": "{\"crossing_id\": \"cluster_73001391\", \"state\": {\"current_phase_id\": 2, \"green_elapsed\": 7.129522709905752, \"phase_metrics_by_id\": {\"0\": {\"avg_queue_veh\": 9.57428417212796, \"avg_queue_length\": 17.035296628014617, \"avg_speed\": 14.482464647074421}, \"1\": {\"avg_queue_veh\": 5.049567809859452, \"avg_queue_length\": 43.08614823137566, \"avg_speed\": 1.711307110873868}, \"2\": {\"avg_queue_veh\": 1.3068687022786496, \"avg_queue_length\": 24.5873280145534, \"avg_speed\": 8.65531734706227}, \"3\": {\"avg_queue_veh\": 13.729020365120332, \"avg_queue_length\": 7.586350347547821, \"avg_speed\": 12.167131144125714}}}, \"phase_order\": [0, 1, 2, 3]}"
+      },
+      {
+        "role": "assistant",
+        "content": "{\"extend\": \"yes\"}"
+      }
+    ]
+  }
+]
