@@ -81,6 +81,10 @@ def load_grpo_dataset(dataset_path: str):
             "junction_id": item.get("junction_id", ""),
             # 保存state_file路径，用于reward计算
             "state_file": item.get("state_file", ""),
+            # 保存时间参数，用于Max Pressure baseline计算
+            "current_green_elapsed": item.get("current_green_elapsed", None),
+            "min_green": item.get("min_green", None),
+            "max_green": item.get("max_green", None),
             # 暂时不包含expert_decision，因为GRPO需要通过reward函数评估
         })
 
@@ -93,7 +97,9 @@ def load_grpo_dataset(dataset_path: str):
 def create_reward_function(
     chain_config: RewardChainConfig,
     sumo_config,
-    dataset
+    dataset,
+    enable_baseline_tracking: bool = False,
+    mp_config = None
 ) -> Callable:
     """
     创建GRPOTrainer使用的reward函数
@@ -104,12 +110,43 @@ def create_reward_function(
         chain_config: Reward函数链配置
         sumo_config: SUMO配置
         dataset: 数据集（用于获取state_files）
+        enable_baseline_tracking: 是否启用Max Pressure baseline追踪
+        mp_config: Max Pressure配置对象
 
     Returns:
         reward函数
     """
     # 预加载state_files（按数据集顺序）
     state_files = dataset["state_file"]
+
+    # 预加载时间参数（用于Max Pressure baseline计算）
+    green_elapsed_list = dataset.get("current_green_elapsed", [None] * len(dataset))
+    min_green_list = dataset.get("min_green", [None] * len(dataset))
+    max_green_list = dataset.get("max_green", [None] * len(dataset))
+
+    # 预计算baseline决策（如果启用）
+    baseline_decisions = None
+    if enable_baseline_tracking:
+        try:
+            from grpo.max_pressure import batch_max_pressure_decision, MaxPressureConfig
+
+            # 使用提供的配置或默认配置
+            baseline_config = mp_config if mp_config is not None else MaxPressureConfig()
+
+            # 批量计算baseline决策
+            baseline_decisions = batch_max_pressure_decision(
+                prompts=dataset["prompt"],
+                green_elapsed_list=green_elapsed_list,
+                min_green_list=min_green_list,
+                max_green_list=max_green_list,
+                config=baseline_config
+            )
+            print(f"已预计算 {len(baseline_decisions)} 个baseline决策")
+        except Exception as e:
+            print(f"警告: Baseline预计算失败: {e}")
+            print(f"禁用baseline追踪")
+            enable_baseline_tracking = False
+            baseline_decisions = None
 
     def reward_fn(prompts: List[str], outputs: List[str], **kwargs) -> List[float]:
         """
@@ -120,12 +157,22 @@ def create_reward_function(
         n = len(outputs)
         aligned_state_files = state_files[:n] if len(state_files) >= n else state_files
 
+        # 对齐时间参数
+        aligned_green_elapsed = green_elapsed_list[:n] if len(green_elapsed_list) >= n else green_elapsed_list
+        aligned_min_green = min_green_list[:n] if len(min_green_list) >= n else min_green_list
+        aligned_max_green = max_green_list[:n] if len(max_green_list) >= n else max_green_list
+
         rewards, stats = batch_compute_reward(
             prompts=prompts[:n],
             outputs=outputs,
             state_files=aligned_state_files,
             chain_config=chain_config,
-            sumo_config=sumo_config
+            sumo_config=sumo_config,
+            green_elapsed_list=aligned_green_elapsed,
+            min_green_list=aligned_min_green,
+            max_green_list=aligned_max_green,
+            enable_baseline=enable_baseline_tracking,
+            mp_config=mp_config
         )
 
         # 打印统计信息
@@ -137,6 +184,33 @@ def create_reward_function(
         print(f"  Avg format reward: {stats.avg_format_reward:.3f}")
         print(f"  Avg TSC reward: {stats.avg_tsc_reward:.3f}")
         print(f"  Avg final reward: {stats.avg_final_reward:.3f}")
+
+        # 计算并打印baseline准确率（如果启用）
+        if enable_baseline_tracking and baseline_decisions is not None:
+            try:
+                from grpo.reward import extract_decision
+                from grpo.max_pressure import compare_with_baseline
+
+                # 提取模型决策
+                model_decisions = [
+                    extract_decision(o, chain_config.extract_regex)
+                    for o in outputs
+                    if extract_decision(o, chain_config.extract_regex) is not None
+                ]
+
+                # 对齐baseline决策
+                aligned_baseline = baseline_decisions[:len(model_decisions)] if len(baseline_decisions) >= len(model_decisions) else baseline_decisions
+
+                # 计算准确率
+                if model_decisions and len(model_decisions) == len(aligned_baseline):
+                    matches = compare_with_baseline(model_decisions, aligned_baseline)
+                    accuracy = sum(matches) / len(matches) if matches else 0.0
+                    print(f"  Baseline Accuracy: {accuracy:.2%} ({sum(matches)}/{len(matches)})")
+                else:
+                    print(f"  Baseline Comparison: Skipped (decision count mismatch)")
+            except Exception as e:
+                print(f"  Baseline Comparison Error: {e}")
+
         print(f"{'='*50}\n")
 
         return rewards
@@ -218,6 +292,17 @@ def train_grpo(
     print(f"训练轮数: {config.num_train_epochs}")
     print(f"Format权重: {config.reward.format_weight}")
     print(f"TSC权重: {config.reward.tsc_weight}")
+
+    # 打印baseline配置
+    enable_baseline = getattr(config, 'enable_baseline', False)
+    print(f"Baseline追踪: {'启用' if enable_baseline else '禁用'}")
+    if enable_baseline:
+        baseline_config = getattr(config, 'baseline_config', None)
+        if baseline_config is not None:
+            print(f"  - 最小绿偏移: {baseline_config.min_green_offset}s")
+            print(f"  - 压力阈值: {baseline_config.pressure_threshold}")
+            print(f"  - 允许覆盖最大绿: {baseline_config.max_green_override}")
+
     print("=" * 60)
 
     # 导入依赖
@@ -278,7 +363,9 @@ def train_grpo(
     reward_fn = create_reward_function(
         chain_config=reward_chain_config,
         sumo_config=sumo_config,
-        dataset=train_dataset
+        dataset=train_dataset,
+        enable_baseline_tracking=getattr(config, 'enable_baseline', False),
+        mp_config=getattr(config, 'baseline_config', None)
     )
 
     # 配置GRPO训练参数
