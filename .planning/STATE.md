@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2025-02-02)
 
 **Core value:** 模型能够根据SUMO仿真状态的相位排队信息，准确判断是否延长当前绿灯相位，以最小化整个交叉口的排队车辆数。
-**Current focus:** Phase 3: 训练流程集成
+**Current focus:** Phase 4: 测试、验证和完善
 
 ## Current Position
 
-Phase: 3 of 4 (训练流程集成)
-Plan: 3 of 3 in current phase
-Status: Phase 3 complete
-Last activity: 2026-02-02 — Completed 03-03-PLAN.md (集成验证到训练流程)
+Phase: 4 of 4 (测试、验证和完善)
+Plan: 1 of 2 in current phase
+Status: Plan 04-01 complete
+Last activity: 2026-02-02 — Completed 04-01-PLAN.md (测试基础设施与单元测试)
 
-Progress: [████████████████████████] 100% (3/3 plans in Phase 3)
+Progress: [████████░░░░░░░░░░░░] 66% (11/16 total plans, 1/2 in Phase 4)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 5m 55s
-- Total execution time: 58m 58s
+- Total plans completed: 11
+- Average duration: 7m 6s
+- Total execution time: 1h 18m
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: [███████████████████████
 | 1. GRPO训练核心基础设施 | 4 | 4 | 7m 48s |
 | 2. Max Pressure算法和配置管理 | 3 | 3 | 5m 16s |
 | 3. 训练流程集成 | 3 | 3 | 4m 25s |
-| 4. 测试、验证和完善 | 0 | 0 | - |
+| 4. 测试、验证和完善 | 1 | 2 | 20m 0s |
 
 **Recent Trend:**
-- Last 5 plans: 4m 44s
-- Trend: Accelerating
+- Last 5 plans: 8m 12s
+- Trend: Stabilizing
 
 *Updated after each plan completion*
 
@@ -111,6 +111,16 @@ Recent decisions affecting current work:
 - 验证耗时：记录验证耗时并在训练摘要中显示，便于监控验证性能
 - 退出码规范：验证失败返回1，异常返回2，成功返回0
 
+**From 04-01:**
+- 使用pytest作为测试框架（现代化、自动发现、丰富fixture系统）
+- 单元测试使用mock避免SUMO依赖，集成测试标记为@pytest.mark.integration
+- 测试按功能模块组织在tests/unit和tests/integration目录
+- 共享fixture放在conftest.py中，使用工厂模式返回函数而非数据
+- 描述性测试命名：test_<function>_<scenario>_<expected>
+- 测试标记策略：-m "not integration"只运行单元测试，-m integration只运行集成测试
+- Docker测试执行脚本：scripts/run_tests.sh支持-u/-i/-a/-k参数
+- format_reward_fn添加None输入处理（Rule 1: Bug fix）
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -121,11 +131,12 @@ None yet.
 
 [Issues that affect future work]
 
-- **pytest未安装：** 当前环境没有pytest，测试手动验证通过。建议Phase 4中安装pytest并集成CI/CD
+- ~~**pytest未安装：** 当前环境没有pytest，测试手动验证通过。建议Phase 4中安装pytest并集成CI/CD~~ ✓ 已在04-01中解决
 - **覆盖检测局限性：** 默认值比较方法在用户显式传入默认值时无法区分（罕见情况）
+- **集成测试需要SUMO环境：** 集成测试需要在docker容器中运行，本地测试会skip（这是预期行为）
 
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 03-03-PLAN.md (集成验证到训练流程)
+Stopped at: Completed 04-01-PLAN.md (测试基础设施与单元测试)
 Resume file: None
