@@ -295,7 +295,12 @@ def batch_compute_reward(
     outputs: List[str],
     state_files: List[str],
     chain_config: RewardChainConfig,
-    sumo_config: Any
+    sumo_config: Any,
+    green_elapsed_list: List[float] = None,
+    min_green_list: List[float] = None,
+    max_green_list: List[float] = None,
+    enable_baseline: bool = False,
+    mp_config: Any = None
 ) -> Tuple[List[float], RewardStats]:
     """
     批量计算reward（GRPOTrainer调用接口）
@@ -306,6 +311,11 @@ def batch_compute_reward(
         state_files: 状态文件路径列表
         chain_config: Reward函数链配置
         sumo_config: SUMO配置
+        green_elapsed_list: 各样本的绿灯已持续时间列表（可选，用于baseline计算）
+        min_green_list: 各样本的最小绿灯时间列表（可选，用于baseline计算）
+        max_green_list: 各样本的最大绿灯时间列表（可选，用于baseline计算）
+        enable_baseline: 是否启用Max Pressure baseline比较
+        mp_config: Max Pressure配置对象
 
     Returns:
         (rewards列表, 统计信息)
@@ -329,6 +339,29 @@ def batch_compute_reward(
         i for i, r in enumerate(format_results)
         if r.is_strict or r.is_partial
     ]
+
+    # 预计算Max Pressure baseline决策（如果启用）
+    baseline_decisions = None
+    if enable_baseline and all(x is not None for x in [green_elapsed_list, min_green_list, max_green_list]):
+        try:
+            from .max_pressure import batch_max_pressure_decision, MaxPressureConfig
+
+            # 使用提供的配置或默认配置
+            baseline_config = mp_config if mp_config is not None else MaxPressureConfig()
+
+            # 批量计算baseline决策（使用outputs长度截断）
+            n_samples = len(outputs)
+            baseline_decisions = batch_max_pressure_decision(
+                prompts=prompts[:n_samples],
+                green_elapsed_list=green_elapsed_list[:n_samples],
+                min_green_list=min_green_list[:n_samples],
+                max_green_list=max_green_list[:n_samples],
+                config=baseline_config
+            )
+        except Exception as e:
+            print(f"Warning: Baseline calculation failed: {e}")
+            print(f"Continuing without baseline comparison")
+            baseline_decisions = None
 
     # 批量计算TSC reward（使用并行）
     tsc_rewards = [0.0] * len(outputs)
@@ -374,5 +407,23 @@ def batch_compute_reward(
         avg_final_reward=sum(final_rewards) / len(outputs),
         format_accuracy=(sum(1 for r in format_results if r.is_strict or r.is_partial) / len(outputs))
     )
+
+    # 计算并打印baseline统计信息
+    if baseline_decisions is not None:
+        from .max_pressure import compare_with_baseline
+
+        # 从format_results中提取所有有效决策
+        model_decisions = [
+            r.extracted_decision for r in format_results
+            if r.extracted_decision is not None
+        ]
+
+        # 调用compare_with_baseline比较
+        if model_decisions and len(model_decisions) == len(baseline_decisions):
+            matches = compare_with_baseline(model_decisions, baseline_decisions)
+            accuracy = sum(matches) / len(matches) if matches else 0.0
+            print(f"  Baseline Accuracy: {accuracy:.2%} ({sum(matches)}/{len(matches)})")
+        else:
+            print(f"  Baseline Comparison: Skipped (decision count mismatch)")
 
     return final_rewards, stats
