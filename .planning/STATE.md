@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2025-02-02)
 ## Current Position
 
 Phase: 5 of 5 (Max Pressure Baseline集成)
-Plan: 4 of 4 in current phase
+Plan: 5 of 5 in current phase
 Status: Phase 5 complete ✓
-Last activity: 2026-02-02 — Completed 05-04-PLAN.md (编写单元测试验证baseline比较和统计功能)
+Last activity: 2026-02-02 — Completed 05-05-PLAN.md (编写集成测试验证完整训练流程包含baseline追踪)
 
-Progress: [███████████████████] 100% (18/18 total plans, 4/4 in Phase 5)
+Progress: [███████████████████] 100% (19/19 total plans, 5/5 in Phase 5)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 18
-- Average duration: ~6m 58s
-- Total execution time: ~2h 5m
+- Total plans completed: 19
+- Average duration: ~6m 40s
+- Total execution time: ~2h 7m
 
 **By Phase:**
 
@@ -31,7 +31,7 @@ Progress: [███████████████████] 100% (18/1
 | 2. Max Pressure算法和配置管理 | 3 | 3 | 5m 16s |
 | 3. 训练流程集成 | 3 | 3 | 4m 25s |
 | 4. 测试、验证和完善 | 2 | 2 | 13m 30s |
-| 5. Max Pressure Baseline集成 | 4 | 4 | 3m 30s |
+| 5. Max Pressure Baseline集成 | 5 | 5 | 3m 36s |
 
 **Recent Trend:**
 - Last 5 plans: 8m 18s
@@ -156,6 +156,13 @@ Recent decisions affecting current work:
 - 边界覆盖：重点测试时间参数缺失、格式无效、错误处理等边界情况，确保baseline功能的鲁棒性
 - 测试覆盖率达到84%，所有16个测试用例通过
 
+**From 05-05:**
+- 创建独立的baseline集成测试文件：test_baseline_integration.py包含10个测试用例，避免修改现有测试文件
+- 分层测试策略：配置测试 → 单元测试 → 集成测试 → 端到端测试，便于快速定位问题
+- 测试隔离原则：核心功能测试不依赖datasets模块，使用简化的数据集类模拟
+- 端到端测试标记：使用@pytest.mark.integration标记需要完整Docker环境的测试
+- 修复重复定义：删除config.py中重复的MaxPressureConfig定义，统一使用max_pressure.py版本
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -173,5 +180,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 05-04-PLAN.md (编写单元测试验证baseline比较和统计功能)
+Stopped at: Completed 05-05-PLAN.md (编写集成测试验证完整训练流程包含baseline追踪)
 Resume file: None
