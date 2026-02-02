@@ -126,9 +126,20 @@ def train_sft(
         seed: 随机种子
     """
     # 如果提供了config，使用config.sft中的值作为默认值
+    # 优先级：命令行参数 > 配置文件 > 默认值
     if config is not None:
         sft_config = config.sft
-        # 只使用参数为None或默认值时，才从config中获取
+        # 使用命令行参数覆盖配置文件值（命令行参数为默认值时才使用配置文件值）
+        # 这里假设函数参数的默认值就是函数定义中的默认值
+        # 实际覆盖逻辑在main()中处理，这里只在参数未显式提供时使用配置文件值
+
+        # 对于路径参数，特别处理
+        if dataset_path == "/home/samuel/SCU_TSC/data/sft_datasets/sft_dataset.json":
+            dataset_path = config.paths.sft_dataset_dir
+        if output_dir == "/home/samuel/SCU_TSC/model/sft_model":
+            output_dir = config.paths.sft_model_dir
+
+        # 对于其他参数，如果为默认值则使用配置文件值
         if model_name == "unsloth/Qwen2.5-0.5B-Instruct":
             model_name = sft_config.model_name
         if max_seq_length == 2048:

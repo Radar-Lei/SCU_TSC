@@ -159,14 +159,46 @@ def reward_function_placeholder(prompts: List[str], outputs: List[str], **kwargs
     return [0.0] * len(outputs)
 
 
-def train_grpo(config, training_config=None):
+def train_grpo(
+    config,
+    model_path: str = None,
+    dataset_path: str = None,
+    output_dir: str = None,
+    learning_rate: float = None,
+    batch_size: int = None,
+    num_epochs: int = None,
+    max_steps: int = None,
+):
     """
     执行GRPO训练
+
+    优先级：命令行参数 > 配置文件 > 默认值
 
     Args:
         config: GRPOTrainingConfig配置对象（来自grpo_config.yaml或从training_config转换）
         training_config: TrainingConfig配置对象（可选，来自training_config.yaml）
+        model_path: 模型路径（覆盖配置文件）
+        dataset_path: 数据集路径（覆盖配置文件）
+        output_dir: 输出目录（覆盖配置文件）
+        learning_rate: 学习率（覆盖配置文件）
+        batch_size: 批次大小（覆盖配置文件）
+        num_epochs: 训练轮数（覆盖配置文件）
+        max_steps: 最大训练步数（覆盖配置文件）
     """
+    # 应用命令行参数覆盖
+    if model_path is not None:
+        config.model_path = model_path
+    if dataset_path is not None:
+        config.dataset_path = dataset_path
+    if output_dir is not None:
+        config.output_dir = output_dir
+    if learning_rate is not None:
+        config.learning_rate = learning_rate
+    if batch_size is not None:
+        config.batch_size = batch_size
+    if num_epochs is not None:
+        config.num_train_epochs = num_epochs
+
     # 如果提供了training_config，打印信息
     if training_config is not None:
         print("使用training_config.yaml中的配置")
@@ -413,22 +445,18 @@ def main():
         training_config = None
         print(f"已加载GRPO训练配置: {config_path}")
 
-    # 命令行参数覆盖配置文件
-    if args.model_path:
-        config.model_path = args.model_path
-    if args.dataset_path:
-        config.dataset_path = args.dataset_path
-    if args.output_dir:
-        config.output_dir = args.output_dir
-    if args.learning_rate:
-        config.learning_rate = args.learning_rate
-    if args.batch_size:
-        config.batch_size = args.batch_size
-    if args.num_epochs:
-        config.num_train_epochs = args.num_epochs
-
     # 执行训练
-    train_grpo(config, training_config=training_config)
+    train_grpo(
+        config,
+        training_config=training_config,
+        model_path=args.model_path,
+        dataset_path=args.dataset_path,
+        output_dir=args.output_dir,
+        learning_rate=args.learning_rate,
+        batch_size=args.batch_size,
+        num_epochs=args.num_epochs,
+        max_steps=args.max_steps,
+    )
 
 
 if __name__ == "__main__":
