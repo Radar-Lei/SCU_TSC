@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Max Pressure算法和配置管理** - 实现baseline算法和配置系统
 - [x] **Phase 3: 训练流程集成** - 完善端到端训练流程和数据验证
 - [x] **Phase 4: 测试、验证和完善** - 通过单元测试和集成测试确保系统稳定性
-- [ ] **Phase 5: Max Pressure Baseline集成** - 将Max Pressure算法集成到训练流程，完成MAXP-01需求
+- [x] **Phase 5: Max Pressure Baseline集成** - 将Max Pressure算法集成到训练流程，完成MAXP-01需求
 
 ## Phase Details
 
@@ -103,11 +103,11 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 05-01: 扩展reward计算函数，添加baseline比较逻辑到compute_reward()
-- [ ] 05-02: 增强训练脚本，添加baseline统计追踪到create_reward_function()
-- [ ] 05-03: 激活training_config.yaml中baseline配置项，添加enable_baseline_tracking参数
-- [ ] 05-04: 编写单元测试，验证baseline比较和统计功能
-- [ ] 05-05: 编写集成测试，验证baseline追踪在完整训练流程中工作
+- [x] 05-01: 扩展reward计算函数，添加baseline比较逻辑到compute_reward()
+- [x] 05-02: 增强训练脚本，添加baseline统计追踪到create_reward_function()
+- [x] 05-03: 激活training_config.yaml中baseline配置项，添加enable_baseline_tracking参数
+- [x] 05-04: 编写单元测试，验证baseline比较和统计功能
+- [x] 05-05: 编写集成测试，验证baseline追踪在完整训练流程中工作
 
 ## Progress
 
@@ -120,4 +120,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Max Pressure算法和配置管理 | 3/3 | ✓ Complete | 2026-02-02 |
 | 3. 训练流程集成 | 3/3 | ✓ Complete | 2026-02-02 |
 | 4. 测试、验证和完善 | 2/2 | ✓ Complete | 2026-02-02 |
-| 5. Max Pressure Baseline集成 | 0/5 | Pending | - |
+| 5. Max Pressure Baseline集成 | 5/5 | ✓ Complete | 2026-02-02 |
