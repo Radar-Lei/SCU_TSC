@@ -9,7 +9,8 @@ GRPO训练脚本
 用法:
     python grpo/training.py
     python grpo/training.py --config config/grpo_config.yaml
-    python grpo/training.py --config config/grpo_config.yaml --output-dir ./my_model
+    python grpo/training.py --config config/training_config.yaml
+    python grpo/training.py --config config/training_config.yaml --output-dir ./my_model
 """
 
 import os
@@ -158,13 +159,18 @@ def reward_function_placeholder(prompts: List[str], outputs: List[str], **kwargs
     return [0.0] * len(outputs)
 
 
-def train_grpo(config):
+def train_grpo(config, training_config=None):
     """
     执行GRPO训练
 
     Args:
-        config: GRPOTrainingConfig配置对象
+        config: GRPOTrainingConfig配置对象（来自grpo_config.yaml或从training_config转换）
+        training_config: TrainingConfig配置对象（可选，来自training_config.yaml）
     """
+    # 如果提供了training_config，打印信息
+    if training_config is not None:
+        print("使用training_config.yaml中的配置")
+
     print("=" * 60)
     print("GRPO训练")
     print("=" * 60)
@@ -178,8 +184,8 @@ def train_grpo(config):
     print(f"温度: {config.temperature}")
     print(f"KL系数: {config.kl_coeff}")
     print(f"训练轮数: {config.num_train_epochs}")
-    print(f"Format权重: {config.format_weight}")
-    print(f"TSC权重: {config.tsc_weight}")
+    print(f"Format权重: {config.reward.format_weight}")
+    print(f"TSC权重: {config.reward.tsc_weight}")
     print("=" * 60)
 
     # 导入依赖
@@ -325,8 +331,8 @@ def parse_args():
     parser.add_argument(
         "--config",
         type=str,
-        default="/home/samuel/SCU_TSC/config/grpo_config.yaml",
-        help="GRPO训练配置文件路径（YAML格式）"
+        default=None,
+        help="训练配置文件路径（支持grpo_config.yaml或training_config.yaml）"
     )
 
     # 支持命令行参数覆盖配置文件
@@ -380,10 +386,32 @@ def main():
     """主函数"""
     args = parse_args()
 
-    # 加载配置文件
-    from grpo.config import GRPOTrainingConfig
+    # 确定配置文件类型
+    if args.config is None:
+        # 默认使用training_config.yaml
+        config_path = "config/training_config.yaml"
+        use_training_config = True
+    else:
+        config_path = args.config
+        # 根据文件名判断配置类型
+        if "training_config.yaml" in args.config:
+            use_training_config = True
+        else:
+            use_training_config = False
 
-    config = GRPOTrainingConfig.from_yaml(args.config)
+    # 加载配置
+    from grpo.config import GRPOTrainingConfig, load_training_config
+
+    if use_training_config:
+        # 使用training_config.yaml
+        training_config = load_training_config(config_path)
+        config = training_config.grpo  # 转换为GRPOTrainingConfig
+        print(f"已加载中央训练配置: {config_path}")
+    else:
+        # 使用grpo_config.yaml
+        config = GRPOTrainingConfig.from_yaml(config_path)
+        training_config = None
+        print(f"已加载GRPO训练配置: {config_path}")
 
     # 命令行参数覆盖配置文件
     if args.model_path:
@@ -400,7 +428,7 @@ def main():
         config.num_train_epochs = args.num_epochs
 
     # 执行训练
-    train_grpo(config)
+    train_grpo(config, training_config=training_config)
 
 
 if __name__ == "__main__":

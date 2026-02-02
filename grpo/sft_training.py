@@ -8,6 +8,7 @@ SFT训练脚本
 
 用法:
     python -m grpo.sft_training
+    python -m grpo.sft_training --config config/training_config.yaml
     python -m grpo.sft_training --max-steps 100 --output-dir ./my_model
 """
 
@@ -76,6 +77,7 @@ def format_for_training(example, tokenizer):
 
 
 def train_sft(
+    config=None,
     model_name: str = "unsloth/Qwen2.5-0.5B-Instruct",
     dataset_path: str = "/home/samuel/SCU_TSC/data/sft_datasets/sft_dataset.json",
     output_dir: str = "/home/samuel/SCU_TSC/model/sft_model",
@@ -83,6 +85,7 @@ def train_sft(
     lora_rank: int = 32,
     num_epochs: int = 3,
     batch_size: int = 2,
+    gradient_accumulation_steps: int = 4,
     learning_rate: float = 2e-4,
     max_steps: Optional[int] = None,
     logging_steps: int = 5,
@@ -90,11 +93,17 @@ def train_sft(
     eval_percent: float = 0.05,
     eval_limit: int = 100,
     eval_steps: int = 30,
+    warmup_steps: int = 5,
+    optim: str = "adamw_8bit",
+    weight_decay: float = 0.001,
+    lr_scheduler_type: str = "linear",
+    seed: int = 3407,
 ):
     """
     执行SFT训练
-    
+
     Args:
+        config: TrainingConfig配置对象（可选，从training_config.yaml加载）
         model_name: 基础模型路径
         dataset_path: SFT数据集路径
         output_dir: 模型输出目录
@@ -102,6 +111,7 @@ def train_sft(
         lora_rank: LoRA秩
         num_epochs: 训练轮数
         batch_size: 批次大小
+        gradient_accumulation_steps: 梯度累积步数
         learning_rate: 学习率
         max_steps: 最大训练步数（可选，用于调试）
         logging_steps: 日志记录间隔
@@ -109,7 +119,51 @@ def train_sft(
         eval_percent: 验证集比例 (默认 0.05 = 5%)
         eval_limit: 验证集最大数量 (默认 100)
         eval_steps: 评估步数间隔 (默认 30)
+        warmup_steps: 预热步数
+        optim: 优化器
+        weight_decay: 权重衰减
+        lr_scheduler_type: 学习率调度器类型
+        seed: 随机种子
     """
+    # 如果提供了config，使用config.sft中的值作为默认值
+    if config is not None:
+        sft_config = config.sft
+        # 只使用参数为None或默认值时，才从config中获取
+        if model_name == "unsloth/Qwen2.5-0.5B-Instruct":
+            model_name = sft_config.model_name
+        if max_seq_length == 2048:
+            max_seq_length = sft_config.max_seq_length
+        if lora_rank == 32:
+            lora_rank = sft_config.lora_rank
+        if num_epochs == 3:
+            num_epochs = sft_config.num_epochs
+        if batch_size == 2:
+            batch_size = sft_config.batch_size
+        if gradient_accumulation_steps == 4:
+            gradient_accumulation_steps = sft_config.gradient_accumulation_steps
+        if learning_rate == 2e-4:
+            learning_rate = sft_config.learning_rate
+        if logging_steps == 5:
+            logging_steps = sft_config.logging_steps
+        if save_steps == 50:
+            save_steps = sft_config.save_steps
+        if eval_percent == 0.05:
+            eval_percent = sft_config.eval_percent
+        if eval_limit == 100:
+            eval_limit = sft_config.eval_limit
+        if eval_steps == 30:
+            eval_steps = sft_config.eval_steps
+        if warmup_steps == 5:
+            warmup_steps = sft_config.warmup_steps
+        if optim == "adamw_8bit":
+            optim = sft_config.optim
+        if weight_decay == 0.001:
+            weight_decay = sft_config.weight_decay
+        if lr_scheduler_type == "linear":
+            lr_scheduler_type = sft_config.lr_scheduler_type
+        if seed == 3407:
+            seed = sft_config.seed
+
     print("=" * 60)
     print("SFT训练")
     print("=" * 60)
@@ -119,10 +173,16 @@ def train_sft(
     print(f"LoRA秩: {lora_rank}")
     print(f"训练轮数: {num_epochs}")
     print(f"批次大小: {batch_size}")
+    print(f"梯度累积步数: {gradient_accumulation_steps}")
     print(f"学习率: {learning_rate}")
     print(f"最大步数: {max_steps or '无限制'}")
     print(f"验证集比例: {eval_percent * 100}% (上限 {eval_limit} 条)")
     print(f"评估间隔: {eval_steps} 步")
+    print(f"预热步数: {warmup_steps}")
+    print(f"优化器: {optim}")
+    print(f"权重衰减: {weight_decay}")
+    print(f"学习率调度器: {lr_scheduler_type}")
+    print(f"随机种子: {seed}")
     print("=" * 60)
     
     # 导入依赖
@@ -177,8 +237,8 @@ def train_sft(
         output_dir=output_dir,
         dataset_text_field="text",
         per_device_train_batch_size=batch_size,
-        gradient_accumulation_steps=4,
-        warmup_steps=5,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        warmup_steps=warmup_steps,
         num_train_epochs=num_epochs,
         max_steps=max_steps if max_steps else -1,
         learning_rate=learning_rate,
@@ -186,10 +246,10 @@ def train_sft(
         eval_strategy="steps" if eval_dataset is not None else "no",
         eval_steps=eval_steps,
         save_steps=save_steps,
-        optim="adamw_8bit",
-        weight_decay=0.001,
-        lr_scheduler_type="linear",
-        seed=3407,
+        optim=optim,
+        weight_decay=weight_decay,
+        lr_scheduler_type=lr_scheduler_type,
+        seed=seed,
         report_to="none",
         save_total_limit=2,
     )
@@ -230,7 +290,15 @@ def parse_args():
         description="SFT训练脚本",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    
+
+    # 配置文件参数
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="中央训练配置文件路径（training_config.yaml）"
+    )
+
     parser.add_argument(
         "--model-name",
         type=str,
@@ -274,6 +342,12 @@ def parse_args():
         help="批次大小"
     )
     parser.add_argument(
+        "--gradient-accumulation-steps",
+        type=int,
+        default=4,
+        help="梯度累积步数"
+    )
+    parser.add_argument(
         "--learning-rate",
         type=float,
         default=2e-4,
@@ -315,14 +389,53 @@ def parse_args():
         default=30,
         help="评估步数间隔 (默认 30)"
     )
-    
+    parser.add_argument(
+        "--warmup-steps",
+        type=int,
+        default=5,
+        help="预热步数"
+    )
+    parser.add_argument(
+        "--optim",
+        type=str,
+        default="adamw_8bit",
+        help="优化器"
+    )
+    parser.add_argument(
+        "--weight-decay",
+        type=float,
+        default=0.001,
+        help="权重衰减"
+    )
+    parser.add_argument(
+        "--lr-scheduler-type",
+        type=str,
+        default="linear",
+        help="学习率调度器类型"
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=3407,
+        help="随机种子"
+    )
+
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    
+
+    # 加载配置文件（如果提供）
+    config = None
+    if args.config:
+        from grpo.config import load_training_config
+        config = load_training_config(args.config)
+        print(f"已加载配置文件: {args.config}")
+
+    # 执行训练（config作为可选参数传入）
     train_sft(
+        config=config,
         model_name=args.model_name,
         dataset_path=args.dataset,
         output_dir=args.output_dir,
@@ -330,6 +443,7 @@ def main():
         lora_rank=args.lora_rank,
         num_epochs=args.epochs,
         batch_size=args.batch_size,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
         learning_rate=args.learning_rate,
         max_steps=args.max_steps,
         logging_steps=args.logging_steps,
@@ -337,6 +451,11 @@ def main():
         eval_percent=args.eval_percent,
         eval_limit=args.eval_limit,
         eval_steps=args.eval_steps,
+        warmup_steps=args.warmup_steps,
+        optim=args.optim,
+        weight_decay=args.weight_decay,
+        lr_scheduler_type=args.lr_scheduler_type,
+        seed=args.seed,
     )
 
 
