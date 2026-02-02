@@ -1,0 +1,113 @@
+# TSC-GRPO 中央训练配置文件
+# 包含SFT和GRPO训练的所有超参数
+
+# ============== 训练配置 ==============
+training:
+  # SFT训练参数
+  sft:
+    model_name: "unsloth/Qwen2.5-0.5B-Instruct"
+    max_seq_length: 2048
+    lora_rank: 32
+    num_epochs: 3
+    batch_size: 2
+    gradient_accumulation_steps: 4
+    learning_rate: 2.0e-4
+    max_steps: null  # null表示不限制
+    logging_steps: 5
+    save_steps: 50
+    eval_percent: 0.05  # 验证集比例
+    eval_limit: 100     # 验证集最大数量
+    eval_steps: 30
+    warmup_steps: 5
+    optim: "adamw_8bit"
+    weight_decay: 0.001
+    lr_scheduler_type: "linear"
+    seed: 3407
+
+  # GRPO训练参数
+  grpo:
+    model_path: "/home/samuel/SCU_TSC/model/sft_model"  # 从SFT模型继续
+    max_seq_length: 2048
+    lora_rank: 32
+    learning_rate: 1.0e-5
+    batch_size: 2
+    gradient_accumulation_steps: 4
+    num_generations: 4
+    temperature: 0.9
+    kl_coeff: 0.1
+    max_new_tokens: 50
+    top_p: 0.9
+    repetition_penalty: 1.0
+    num_train_epochs: 3
+    warmup_steps: 10
+    logging_steps: 5
+    save_steps: 50
+    optim: "adamw_8bit"
+    gradient_checkpointing: true
+    seed: 3407
+
+# ============== 仿真配置 ==============
+simulation:
+  # SUMO仿真参数
+  sumo:
+    time_step: 1.0
+    max_time: 3600
+    warmup_steps: 300
+    extend_seconds: 5
+    min_green_time: 10.0
+    max_green_time: 60.0
+    min_green_offset_range: 2.0
+    max_green_offset_range: 5.0
+    default_min_green: 10.0
+    default_max_green: 60.0
+    max_workers: 4
+    port_range: [10000, 60000]
+
+  # 场景配置
+  scenarios:
+    scenarios_dir: "/home/samuel/SCU_TSC/sumo_simulation/environments"
+    num_workers: 0  # 0表示使用CPU核心数-1
+
+# ============== Reward配置 ==============
+reward:
+  # Reward函数链权重
+  chain:
+    format_weight: 1.0
+    tsc_weight: 1.0
+
+  # Format Reward参数
+  format:
+    strict: 1.0
+    partial: -0.5
+    invalid: -10.0
+    extract_regex: '\{["\s]*extend["\s]*:\s*["\s]*(yes|no)["\s]*(?:,|\})'
+
+  # TSC Reward参数
+  tsc:
+    reward_scale: 10.0
+
+  # Max Pressure配置（预留）
+  max_pressure:
+    min_green_offset: 0.0
+    max_green_override: false
+    pressure_threshold: 0.0
+
+# ============== 路径配置 ==============
+paths:
+  # 数据路径
+  data_dir: "/home/samuel/SCU_TSC/data"
+  grpo_dataset_dir: "/home/samuel/SCU_TSC/data/grpo_datasets"
+  sft_dataset_dir: "/home/samuel/SCU_TSC/data/sft_datasets"
+
+  # 模型路径
+  sft_model_dir: "/home/samuel/SCU_TSC/model/sft_model"
+  grpo_model_dir: "/home/samuel/SCU_TSC/model/grpo_model"
+
+  # 配置路径
+  grpo_config: "/home/samuel/SCU_TSC/config/grpo_config.yaml"
+
+# ============== 日志配置 ==============
+logging:
+  use_wandb: false
+  wandb_project: "scu-tsc-grpo"
+  wandb_run_name: null
