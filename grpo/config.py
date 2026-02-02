@@ -287,8 +287,14 @@ class GRPOTrainingConfig:
                                if k in ['min_green_offset', 'max_green_override', 'pressure_threshold']}
         baseline_config = MaxPressureConfig(**max_pressure_params)
 
+        # 从reward_data中提取RewardChainConfig需要的参数
+        reward_chain_data = {
+            "format_weight": reward_data.get('chain', {}).get('format_weight', 1.0),
+            "tsc_weight": reward_data.get('chain', {}).get('tsc_weight', 1.0)
+        }
+
         return cls(
-            reward=RewardChainConfig(**reward_data),
+            reward=RewardChainConfig(**reward_chain_data),
             format_reward=FormatRewardConfig(**format_data),
             sumo=SUMOConfig(**sumo_data),
             enable_baseline=enable_baseline,
@@ -468,13 +474,6 @@ class ScenariosConfig:
 
 
 @dataclass
-class MaxPressureConfig:
-    """Max Pressure配置（预留）"""
-    min_green_offset: float = 0.0
-    max_green_override: bool = False
-    pressure_threshold: float = 0.0
-
-
 @dataclass
 class FormatRewardSectionConfig:
     """Format Reward配置段"""
