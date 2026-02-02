@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2025-02-02)
 ## Current Position
 
 Phase: 3 of 4 (训练流程集成)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-02 — Completed 03-02-PLAN.md (数据验证脚本)
+Plan: 3 of 3 in current phase
+Status: Phase 3 complete
+Last activity: 2026-02-02 — Completed 03-03-PLAN.md (集成验证到训练流程)
 
-Progress: [█████░░░░░░░░░░░░░░░░] 33% (2/3 plans in Phase 3)
+Progress: [████████████████████████] 100% (3/3 plans in Phase 3)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 5m 36s
-- Total execution time: 50m 18s
+- Total plans completed: 10
+- Average duration: 5m 55s
+- Total execution time: 58m 58s
 
 **By Phase:**
 
@@ -29,11 +29,11 @@ Progress: [█████░░░░░░░░░░░░░░░░] 33% 
 |-------|-------|-------|----------|
 | 1. GRPO训练核心基础设施 | 4 | 4 | 7m 48s |
 | 2. Max Pressure算法和配置管理 | 3 | 3 | 5m 16s |
-| 3. 训练流程集成 | 2 | 3 | 3m 30s |
+| 3. 训练流程集成 | 3 | 3 | 4m 25s |
 | 4. 测试、验证和完善 | 0 | 0 | - |
 
 **Recent Trend:**
-- Last 5 plans: 3m 53s
+- Last 5 plans: 4m 44s
 - Trend: Accelerating
 
 *Updated after each plan completion*
@@ -103,6 +103,14 @@ Recent decisions affecting current work:
 - 模块化验证函数设计（validate_grpo_dataset、validate_sft_dataset、validate_sumo_state_files、validate_config_and_environment）
 - CLI支持多种验证组合（--grpo-only、--sft-only、--verify-sumo、--check-env、--verbose）
 
+**From 03-03:**
+- 验证时机：在整个训练流程开始前验证一次（Step 0/5），而不是每个训练步骤前都验证
+- 路径策略：容器内使用固定路径`/home/samuel/SCU_TSC`，主机使用环境变量`PROJECT_DIR`或自动检测
+- 容器环境检测：通过检查`/proc/1/cgroup`判断是否在容器内运行
+- 错误处理：验证失败时输出红色错误信息到stderr，立即退出不执行任何训练步骤
+- 验证耗时：记录验证耗时并在训练摘要中显示，便于监控验证性能
+- 退出码规范：验证失败返回1，异常返回2，成功返回0
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -119,5 +127,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 03-02-PLAN.md (数据验证脚本)
+Stopped at: Completed 03-03-PLAN.md (集成验证到训练流程)
 Resume file: None
