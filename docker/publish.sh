@@ -231,10 +231,16 @@ echo -e '\033[0;34m[Step 0/5]\033[0m 验证数据...'
 GRPO_DATA_EXISTS=false
 SFT_DATA_EXISTS=false
 
-if [[ -d "data/grpo_datasets" ]] && [[ -n "\$(ls -A data/grpo_datasets 2>/dev/null)" ]]; then
-    GRPO_DATA_EXISTS=true
+# 检查GRPO数据目录
+if [[ -d "data/grpo_datasets" ]]; then
+    # 使用更简单的方法检查目录是否为空
+    GRPO_FILE_COUNT=\$(find data/grpo_datasets -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+    if [[ "\${GRPO_FILE_COUNT}" -gt 0 ]]; then
+        GRPO_DATA_EXISTS=true
+    fi
 fi
 
+# 检查SFT数据文件
 if [[ -f "data/sft_datasets/sft_dataset.json" ]]; then
     SFT_DATA_EXISTS=true
 fi
