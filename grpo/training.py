@@ -123,9 +123,11 @@ def create_reward_function(
     state_files = dataset["state_file"]
 
     # 预加载时间参数（用于Max Pressure baseline计算）
-    green_elapsed_list = dataset.get("current_green_elapsed", [None] * len(dataset))
-    min_green_list = dataset.get("min_green", [None] * len(dataset))
-    max_green_list = dataset.get("max_green", [None] * len(dataset))
+    # 注意：Dataset对象不支持.get()方法，需要检查列名是否存在
+    column_names = dataset.column_names
+    green_elapsed_list = dataset["current_green_elapsed"] if "current_green_elapsed" in column_names else [None] * len(dataset)
+    min_green_list = dataset["min_green"] if "min_green" in column_names else [None] * len(dataset)
+    max_green_list = dataset["max_green"] if "max_green" in column_names else [None] * len(dataset)
 
     # 预计算baseline决策（如果启用）
     baseline_decisions = None
@@ -238,6 +240,7 @@ def reward_function_placeholder(prompts: List[str], outputs: List[str], **kwargs
 
 def train_grpo(
     config,
+    training_config=None,
     model_path: str = None,
     dataset_path: str = None,
     output_dir: str = None,
@@ -309,6 +312,8 @@ def train_grpo(
     print("=" * 60)
 
     # 导入依赖
+    if isinstance(getattr(config, "model_path", None), str) and os.path.isdir(config.model_path):
+        os.environ["UNSLOTH_USE_MODELSCOPE"] = "0"
     from unsloth import FastLanguageModel
     from trl import GRPOTrainer, GRPOConfig
     from transformers import TrainingArguments
@@ -346,8 +351,8 @@ def train_grpo(
     print("\n正在配置reward函数链...")
     from types import SimpleNamespace
     reward_chain_config = RewardChainConfig(
-        format_weight=config.format_weight,
-        tsc_weight=config.tsc_weight,
+        format_weight=config.reward.format_weight,
+        tsc_weight=config.reward.tsc_weight,
         format_strict=config.format_reward.strict,
         format_partial=config.format_reward.partial,
         format_invalid=config.format_reward.invalid,
@@ -356,10 +361,10 @@ def train_grpo(
 
     # 创建SUMO配置
     sumo_config = SimpleNamespace(
-        max_workers=config.max_workers,
-        extend_seconds=config.extend_seconds,
-        reward_scale=config.reward_scale,
-        port_range=config.port_range
+        max_workers=config.sumo.max_workers,
+        extend_seconds=config.sumo.extend_seconds,
+        reward_scale=config.sumo.reward_scale,
+        port_range=config.sumo.port_range
     )
 
     # 创建reward函数
@@ -394,6 +399,7 @@ def train_grpo(
 
         # 训练参数
         num_train_epochs=config.num_train_epochs,
+        max_steps=max_steps if max_steps is not None else -1,
         warmup_steps=config.warmup_steps,
         logging_steps=config.logging_steps,
         save_steps=config.save_steps,

@@ -25,42 +25,69 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def load_sft_dataset(dataset_path: str, eval_percent: float = 0.05, eval_limit: int = 100):
     """
     加载SFT数据集
-    
+
     Args:
         dataset_path: 数据集JSON或JSONL文件路径
         eval_percent: 验证集比例 (默认 0.05 = 5%)
         eval_limit: 验证集最大数量 (默认 100)
-        
+
     Returns:
         train_dataset: 训练集 HuggingFace Dataset 对象
         eval_dataset: 验证集 HuggingFace Dataset 对象 (可能为 None)
     """
     from datasets import Dataset
-    
+    from sklearn.model_selection import train_test_split
+    import numpy as np
+
     if dataset_path.endswith('.jsonl'):
         with open(dataset_path, 'r', encoding='utf-8') as f:
             data = [json.loads(line) for line in f]
     else:
         with open(dataset_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-    
+
     dataset = Dataset.from_list(data)
     print(f"加载了 {len(dataset)} 条SFT数据")
-    
+
     if eval_percent <= 0 or eval_percent >= 1:
         return dataset, None
-    
+
+    # 计算验证集大小
     eval_count = max(1, min(int(len(dataset) * eval_percent), eval_limit))
-    train_count = len(dataset) - eval_count
-    
+
     if eval_count < 1:
         return dataset, None
-    
-    train_data = dataset.select(range(train_count))
-    eval_data = dataset.select(range(train_count, len(dataset)))
-    
+
+    # 使用分层随机抽样，确保训练集和验证集的场景分布一致
+    print("使用分层随机抽样划分数据集...")
+
+    # 获取scenario列表用于分层
+    scenarios = [item['scenario'] for item in data]
+    indices = np.arange(len(dataset))
+
+    # 分层抽样：按场景比例划分
+    train_indices, eval_indices = train_test_split(
+        indices,
+        test_size=eval_count,
+        stratify=scenarios,  # 按场景分层
+        random_state=3407
+    )
+
+    train_data = dataset.select(train_indices.tolist())
+    eval_data = dataset.select(eval_indices.tolist())
+
+    # 打印场景分布信息
+    train_scenarios = [scenarios[i] for i in train_indices]
+    eval_scenarios = [scenarios[i] for i in eval_indices]
+
+    from collections import Counter
+    train_scenario_counts = Counter(train_scenarios)
+    eval_scenario_counts = Counter(eval_scenarios)
+
     print(f"划分训练集: {len(train_data)} 条, 验证集: {len(eval_data)} 条")
-    
+    print(f"训练集场景分布: {dict(train_scenario_counts)}")
+    print(f"验证集场景分布: {dict(eval_scenario_counts)}")
+
     return train_data, eval_data
 
 
@@ -135,7 +162,11 @@ def train_sft(
 
         # 对于路径参数，特别处理
         if dataset_path == "/home/samuel/SCU_TSC/data/sft_datasets/sft_dataset.json":
-            dataset_path = config.paths.sft_dataset_dir
+            configured_path = config.paths.sft_dataset_dir
+            if os.path.isdir(configured_path):
+                dataset_path = os.path.join(configured_path, "sft_dataset.json")
+            else:
+                dataset_path = configured_path
         if output_dir == "/home/samuel/SCU_TSC/model/sft_model":
             output_dir = config.paths.sft_model_dir
 
@@ -154,6 +185,8 @@ def train_sft(
             gradient_accumulation_steps = sft_config.gradient_accumulation_steps
         if learning_rate == 2e-4:
             learning_rate = sft_config.learning_rate
+        if max_steps is None:
+            max_steps = sft_config.max_steps
         if logging_steps == 5:
             logging_steps = sft_config.logging_steps
         if save_steps == 50:
@@ -439,10 +472,17 @@ def main():
 
     # 加载配置文件（如果提供）
     config = None
-    if args.config:
+    config_path = args.config
+    if config_path is None:
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        default_path = os.path.join(project_root, "config", "training_config.yaml")
+        if os.path.isfile(default_path):
+            config_path = default_path
+
+    if config_path:
         from grpo.config import load_training_config
-        config = load_training_config(args.config)
-        print(f"已加载配置文件: {args.config}")
+        config = load_training_config(config_path)
+        print(f"已加载配置文件: {config_path}")
 
     # 执行训练（config作为可选参数传入）
     train_sft(

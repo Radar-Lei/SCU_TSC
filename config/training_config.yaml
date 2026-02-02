@@ -11,8 +11,8 @@ training:
     num_epochs: 3
     batch_size: 2
     gradient_accumulation_steps: 4
-    learning_rate: 1.0e-4  # 降低学习率以减缓过拟合
-    max_steps: null  # null表示不限制
+    learning_rate: 1.0e-5  
+    max_steps: 300  # null表示不限制
     logging_steps: 5
     save_steps: 50
     eval_percent: 0.05  # 验证集比例
@@ -54,8 +54,7 @@ simulation:
     max_time: 3600
     warmup_steps: 300
     extend_seconds: 5
-    min_green_time: 10.0
-    max_green_time: 60.0
+
     min_green_offset_range: 2.0
     max_green_offset_range: 5.0
     default_min_green: 10.0

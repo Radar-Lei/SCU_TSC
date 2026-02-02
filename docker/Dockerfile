@@ -23,7 +23,7 @@ RUN add-apt-repository ppa:sumo/stable -y && \
         fluxbox x11-utils x11vnc xvfb && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install traci modelscope --break-system-packages
+RUN pip install traci modelscope scikit-learn --break-system-packages
 
 # 创建与宿主机用户匹配的用户（UID和GID通过ARG传递）
 # 默认使用1000:1000，与常见的Linux用户匹配

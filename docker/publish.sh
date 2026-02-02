@@ -9,11 +9,17 @@ set -euo pipefail
 # 用法:
 #   ./docker/publish.sh
 #
-# 配置参数（通过环境变量）：
-#   PARALLEL       - 并行进程数 (默认: 4)
-#   EXTEND_SECONDS - 决策延长秒数 (默认: 5)
-#   WARMUP_STEPS   - 预热步数 (默认: 300)
-#   SCENARIOS      - 场景列表，逗号分隔 (默认: 空=所有场景)
+# 配置参数（优先级从高到低）：
+#   1. 环境变量 (PARALLEL_OVERRIDE, EXTEND_SECONDS_OVERRIDE, WARMUP_STEPS_OVERRIDE)
+#   2. YAML配置文件 (config/training_config.yaml)
+#   3. 默认值
+#
+# 环境变量：
+#   CONFIG_FILE              - 配置文件路径 (默认: config/training_config.yaml)
+#   PARALLEL_OVERRIDE        - 并行进程数 (默认: 从配置文件读取 simulation.sumo.max_workers)
+#   EXTEND_SECONDS_OVERRIDE  - 决策延长秒数 (默认: 从配置文件读取 simulation.sumo.extend_seconds)
+#   WARMUP_STEPS_OVERRIDE    - 预热步数 (默认: 从配置文件读取 simulation.sumo.warmup_steps)
+#   SCENARIOS                - 场景列表，逗号分隔 (默认: 空=所有场景)
 ################################################################################
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,16 +42,25 @@ IMAGE_NAME="${IMAGE_NAME:-qwen3-tsc-grpo}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 DOCKERFILE="${DOCKERFILE:-${SCRIPT_DIR}/Dockerfile}"
 CONTAINER_WORKDIR="/home/samuel/SCU_TSC"
+DOCKER_NO_CACHE="${DOCKER_NO_CACHE:-0}"
+DOCKER_PULL="${DOCKER_PULL:-0}"
 
 # 目录配置
 HOST_MODEL_DIR="${HOST_MODEL_DIR:-${PROJECT_DIR}/model}"
 HOST_DATA_DIR="${HOST_DATA_DIR:-${PROJECT_DIR}/data}"
 
-# GRPO生成配置
-PARALLEL="${PARALLEL:-4}"
-EXTEND_SECONDS="${EXTEND_SECONDS:-5}"
-WARMUP_STEPS="${WARMUP_STEPS:-300}"
+# GRPO生成配置 - 从YAML配置文件读取
+CONFIG_FILE="${CONFIG_FILE:-${PROJECT_DIR}/config/training_config.yaml}"
+READ_CONFIG_SCRIPT="${PROJECT_DIR}/config/read_config.py"
+
 SCENARIOS="${SCENARIOS:-}"
+PARALLEL="${PARALLEL_OVERRIDE:-auto}"
+EXTEND_SECONDS="${EXTEND_SECONDS_OVERRIDE:-auto}"
+WARMUP_STEPS="${WARMUP_STEPS_OVERRIDE:-auto}"
+DRY_RUN="${DRY_RUN:-0}"
+FORCE_REGEN_GRPO="${FORCE_REGEN_GRPO:-0}"
+FORCE_REGEN_SFT_DATA="${FORCE_REGEN_SFT_DATA:-0}"
+FORCE_RETRAIN_SFT="${FORCE_RETRAIN_SFT:-0}"
 
 # 日志
 LOG_FILE="${PROJECT_DIR}/.docker_run.log"
@@ -132,7 +147,15 @@ fi
 
 # 构建镜像
 echo "[publish] building image ${IMAGE_NAME}:${IMAGE_TAG} from ${DOCKERFILE}"
+DOCKER_BUILD_ARGS=()
+if [[ "${DOCKER_NO_CACHE}" == "1" ]]; then
+  DOCKER_BUILD_ARGS+=(--no-cache)
+fi
+if [[ "${DOCKER_PULL}" == "1" ]]; then
+  DOCKER_BUILD_ARGS+=(--pull)
+fi
 docker build \
+  "${DOCKER_BUILD_ARGS[@]}" \
   --build-arg "USER_ID=${HOST_UID}" \
   --build-arg "GROUP_ID=${HOST_GID}" \
   -t "${IMAGE_NAME}:${IMAGE_TAG}" \
@@ -142,13 +165,6 @@ docker build \
 # 创建目录
 mkdir -p "${HOST_MODEL_DIR}"
 mkdir -p "${HOST_DATA_DIR}"
-
-# 构建运行命令
-if [[ -n "${SCENARIOS}" ]]; then
-  GRPO_GENERATE_CMD="python -m grpo.generate_grpo_dataset --scenarios ${SCENARIOS} --parallel ${PARALLEL} --extend-seconds ${EXTEND_SECONDS} --warmup-steps ${WARMUP_STEPS}"
-else
-  GRPO_GENERATE_CMD="python -m grpo.generate_grpo_dataset --all --parallel ${PARALLEL} --extend-seconds ${EXTEND_SECONDS} --warmup-steps ${WARMUP_STEPS}"
-fi
 
 echo ""
 echo -e "${BLUE}==========================================${NC}"
@@ -184,10 +200,54 @@ docker run \
   -e UNSLOTH_USE_MODELSCOPE=1 \
   -e UNSLOTH_VLLM_STANDBY=1 \
   -e SUMO_HOME=/usr/share/sumo \
+  -e CONFIG_FILE="${CONFIG_FILE}" \
+  -e PARALLEL_OVERRIDE="${PARALLEL_OVERRIDE:-}" \
+  -e EXTEND_SECONDS_OVERRIDE="${EXTEND_SECONDS_OVERRIDE:-}" \
+  -e WARMUP_STEPS_OVERRIDE="${WARMUP_STEPS_OVERRIDE:-}" \
+  -e SCENARIOS="${SCENARIOS}" \
+  -e DRY_RUN="${DRY_RUN}" \
+  -e FORCE_REGEN_GRPO="${FORCE_REGEN_GRPO}" \
+  -e FORCE_REGEN_SFT_DATA="${FORCE_REGEN_SFT_DATA}" \
+  -e FORCE_RETRAIN_SFT="${FORCE_RETRAIN_SFT}" \
   "${IMAGE_NAME}:${IMAGE_TAG}" \
   -c "
 set -e
 cd ${CONTAINER_WORKDIR}
+
+CONFIG_FILE=\"\${CONFIG_FILE:-config/training_config.yaml}\"
+if [[ ! -f \"\${CONFIG_FILE}\" ]]; then
+  CONFIG_FILE=\"config/training_config.yaml\"
+fi
+
+PARALLEL=\"\${PARALLEL_OVERRIDE:-\$(python3 config/read_config.py --config \"\${CONFIG_FILE}\" --key simulation.sumo.max_workers --default 4 2>/dev/null || echo 4)}\"
+EXTEND_SECONDS=\"\${EXTEND_SECONDS_OVERRIDE:-\$(python3 config/read_config.py --config \"\${CONFIG_FILE}\" --key simulation.sumo.extend_seconds --default 5 2>/dev/null || echo 5)}\"
+WARMUP_STEPS=\"\${WARMUP_STEPS_OVERRIDE:-\$(python3 config/read_config.py --config \"\${CONFIG_FILE}\" --key simulation.sumo.warmup_steps --default 300 2>/dev/null || echo 300)}\"
+
+GRPO_DATA_DIR=\"\$(python3 config/read_config.py --config \"\${CONFIG_FILE}\" --key paths.grpo_dataset_dir --default data/grpo_datasets 2>/dev/null || echo data/grpo_datasets)\"
+SFT_DATA_DIR=\"\$(python3 config/read_config.py --config \"\${CONFIG_FILE}\" --key paths.sft_dataset_dir --default data/sft_datasets 2>/dev/null || echo data/sft_datasets)\"
+SCENARIOS_DIR=\"\$(python3 config/read_config.py --config \"\${CONFIG_FILE}\" --key simulation.scenarios.scenarios_dir --default sumo_simulation/environments 2>/dev/null || echo sumo_simulation/environments)\"
+MIN_GREEN_OFFSET_RANGE=\"\$(python3 config/read_config.py --config \"\${CONFIG_FILE}\" --key simulation.sumo.min_green_offset_range --default 2.0 2>/dev/null || echo 2.0)\"
+MAX_GREEN_OFFSET_RANGE=\"\$(python3 config/read_config.py --config \"\${CONFIG_FILE}\" --key simulation.sumo.max_green_offset_range --default 5.0 2>/dev/null || echo 5.0)\"
+SFT_DATA_FILE=\"\${SFT_DATA_DIR%/}/sft_dataset.json\"
+SFT_MODEL_DIR=\"\$(python3 config/read_config.py --config \"\${CONFIG_FILE}\" --key paths.sft_model_dir --default model/sft_model 2>/dev/null || echo model/sft_model)\"
+GRPO_MODEL_DIR=\"\$(python3 config/read_config.py --config \"\${CONFIG_FILE}\" --key paths.grpo_model_dir --default model/grpo_model 2>/dev/null || echo model/grpo_model)\"
+
+export GRPO_DATA_DIR SFT_DATA_DIR SFT_DATA_FILE SFT_MODEL_DIR GRPO_MODEL_DIR
+
+echo -e \"\\033[0;34m[配置]\\033[0m CONFIG_FILE=\${CONFIG_FILE}\"
+echo -e \"\\033[0;34m[配置]\\033[0m max_workers(PARALLEL)=\${PARALLEL}, extend_seconds=\${EXTEND_SECONDS}, warmup_steps=\${WARMUP_STEPS}\"
+echo -e \"\\033[0;34m[配置]\\033[0m GRPO_DATA_DIR=\${GRPO_DATA_DIR}\"
+echo -e \"\\033[0;34m[配置]\\033[0m SFT_DATA_FILE=\${SFT_DATA_FILE}\"
+echo -e \"\\033[0;34m[配置]\\033[0m SCENARIOS_DIR=\${SCENARIOS_DIR}\"
+echo -e \"\\033[0;34m[配置]\\033[0m green_offset_range=[\${MIN_GREEN_OFFSET_RANGE}, \${MAX_GREEN_OFFSET_RANGE}]\"
+echo -e \"\\033[0;34m[配置]\\033[0m SFT_MODEL_DIR=\${SFT_MODEL_DIR}\"
+echo -e \"\\033[0;34m[配置]\\033[0m GRPO_MODEL_DIR=\${GRPO_MODEL_DIR}\"
+echo ''
+
+if [[ \"\${DRY_RUN:-0}\" == \"1\" ]]; then
+  echo -e \"\\033[0;33m[DRY_RUN]\\033[0m 仅回显配置并退出\"
+  exit 0
+fi
 
 # 容器内依赖检查
 echo -e '\033[0;34m[检查]\033[0m 正在检查容器内依赖...'
@@ -239,19 +299,46 @@ echo -e '\033[0;34m[Step 0/5]\033[0m 验证数据...'
 # 检查数据是否已存在（用于判断是首次运行还是增量训练）
 GRPO_DATA_EXISTS=false
 SFT_DATA_EXISTS=false
+SFT_MODEL_EXISTS=false
+SFT_DATA_JSONL=\"\${SFT_DATA_DIR%/}/sft_dataset.jsonl\"
 
 # 检查GRPO数据目录
-if [[ -d "data/grpo_datasets" ]]; then
-    # 使用更简单的方法检查目录是否为空
-    GRPO_FILE_COUNT=\$(find data/grpo_datasets -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
-    if [[ "\${GRPO_FILE_COUNT}" -gt 0 ]]; then
+if [[ -d \"\${GRPO_DATA_DIR}\" ]]; then
+    GRPO_JSON_COUNT=\$(find \"\${GRPO_DATA_DIR}\" -mindepth 2 -maxdepth 2 -type f -name 'grpo_dataset.json' 2>/dev/null | wc -l)
+    if [[ "\${GRPO_JSON_COUNT}" -gt 0 ]]; then
         GRPO_DATA_EXISTS=true
     fi
 fi
 
+if [[ -n \"\${SCENARIOS:-}\" ]]; then
+    IFS=',' read -ra SCEN_LIST <<< \"\${SCENARIOS}\"
+    for scen in \"\${SCEN_LIST[@]}\"; do
+        scen=\"\${scen#\"\${scen%%[![:space:]]*}\"}\"
+        scen=\"\${scen%\"\${scen##*[![:space:]]}\"}\"
+        if [[ -n \"\${scen}\" ]] && [[ ! -f \"\${GRPO_DATA_DIR%/}/\${scen}/grpo_dataset.json\" ]]; then
+            GRPO_DATA_EXISTS=false
+            break
+        fi
+    done
+fi
+
 # 检查SFT数据文件
-if [[ -f "data/sft_datasets/sft_dataset.json" ]]; then
+if [[ -s \"\${SFT_DATA_FILE}\" ]] && [[ -s \"\${SFT_DATA_JSONL}\" ]]; then
     SFT_DATA_EXISTS=true
+fi
+
+if [[ -f \"\${SFT_MODEL_DIR%/}/adapter_model.safetensors\" ]] && [[ -d \"\${SFT_MODEL_DIR%/}/merged\" ]]; then
+    SFT_MODEL_EXISTS=true
+fi
+
+if [[ \"\${FORCE_REGEN_GRPO:-0}\" == \"1\" ]]; then
+    GRPO_DATA_EXISTS=false
+fi
+if [[ \"\${FORCE_REGEN_SFT_DATA:-0}\" == \"1\" ]]; then
+    SFT_DATA_EXISTS=false
+fi
+if [[ \"\${FORCE_RETRAIN_SFT:-0}\" == \"1\" ]]; then
+    SFT_MODEL_EXISTS=false
 fi
 
 if [[ "\$GRPO_DATA_EXISTS" == "true" ]] || [[ "\$SFT_DATA_EXISTS" == "true" ]]; then
@@ -278,44 +365,64 @@ fi
 
 echo ''
 echo -e '\033[0;34m[Step 1/5]\033[0m 生成GRPO数据集...'
-if (
-    ${GRPO_GENERATE_CMD}
-); then
+if [[ \"\${GRPO_DATA_EXISTS}\" == \"true\" ]]; then
+    echo -e '\033[0;33m[SKIP]\033[0m 检测到已有GRPO数据集，跳过生成'
     echo -e '\033[0;32m✓ Step 1/5 完成\033[0m'
 else
-    echo -e '\033[0;31m[ERROR] Step 1/5 失败: GRPO数据生成\033[0m' >&2
-    echo '请查看日志: ${LOG_FILE}' >&2
-    exit 1
+    if (
+        set -e
+        if [[ -n \"\${SCENARIOS:-}\" ]]; then
+            python -m grpo.generate_grpo_dataset --scenarios \"\${SCENARIOS}\" --parallel \"\${PARALLEL}\" --extend-seconds \"\${EXTEND_SECONDS}\" --warmup-steps \"\${WARMUP_STEPS}\" --output-dir \"\${GRPO_DATA_DIR}\" --scenarios-dir \"\${SCENARIOS_DIR}\" --min-green-offset \"\${MIN_GREEN_OFFSET_RANGE}\" --max-green-offset \"\${MAX_GREEN_OFFSET_RANGE}\"
+        else
+            python -m grpo.generate_grpo_dataset --all --parallel \"\${PARALLEL}\" --extend-seconds \"\${EXTEND_SECONDS}\" --warmup-steps \"\${WARMUP_STEPS}\" --output-dir \"\${GRPO_DATA_DIR}\" --scenarios-dir \"\${SCENARIOS_DIR}\" --min-green-offset \"\${MIN_GREEN_OFFSET_RANGE}\" --max-green-offset \"\${MAX_GREEN_OFFSET_RANGE}\"
+        fi
+    ); then
+        echo -e '\033[0;32m✓ Step 1/5 完成\033[0m'
+    else
+        echo -e '\033[0;31m[ERROR] Step 1/5 失败: GRPO数据生成\033[0m' >&2
+        echo '请查看日志: ${LOG_FILE}' >&2
+        exit 1
+    fi
 fi
 
 echo ''
 echo -e '\033[0;34m[Step 2/5]\033[0m 生成SFT数据集...'
-if (
-    python -m grpo.generate_sft_dataset
-); then
+if [[ \"\${SFT_DATA_EXISTS}\" == \"true\" ]]; then
+    echo -e '\033[0;33m[SKIP]\033[0m 检测到已有SFT数据集，跳过生成'
     echo -e '\033[0;32m✓ Step 2/5 完成\033[0m'
 else
-    echo -e '\033[0;31m[ERROR] Step 2/5 失败: SFT数据生成\033[0m' >&2
-    echo '请查看日志: ${LOG_FILE}' >&2
-    exit 1
+    if (
+        python -m grpo.generate_sft_dataset --grpo-dir \"\${GRPO_DATA_DIR}\" --output-dir \"\${SFT_DATA_DIR}\"
+    ); then
+        echo -e '\033[0;32m✓ Step 2/5 完成\033[0m'
+    else
+        echo -e '\033[0;31m[ERROR] Step 2/5 失败: SFT数据生成\033[0m' >&2
+        echo '请查看日志: ${LOG_FILE}' >&2
+        exit 1
+    fi
 fi
 
 echo ''
 echo -e '\033[0;34m[Step 3/5]\033[0m SFT训练...'
-if (
-    python -m grpo.sft_training
-); then
+if [[ \"\${SFT_MODEL_EXISTS}\" == \"true\" ]]; then
+    echo -e '\033[0;33m[SKIP]\033[0m 检测到已有SFT模型，跳过训练'
     echo -e '\033[0;32m✓ Step 3/5 完成\033[0m'
 else
-    echo -e '\033[0;31m[ERROR] Step 3/5 失败: SFT训练\033[0m' >&2
-    echo '请查看日志: ${LOG_FILE}' >&2
-    exit 1
+    if (
+        python -m grpo.sft_training --config \"\${CONFIG_FILE}\"
+    ); then
+        echo -e '\033[0;32m✓ Step 3/5 完成\033[0m'
+    else
+        echo -e '\033[0;31m[ERROR] Step 3/5 失败: SFT训练\033[0m' >&2
+        echo '请查看日志: ${LOG_FILE}' >&2
+        exit 1
+    fi
 fi
 
 echo ''
 echo -e '\033[0;34m[Step 4/5]\033[0m GRPO训练...'
 if (
-    python -m grpo.training
+    python -m grpo.training --config \"\${CONFIG_FILE}\"
 ); then
     echo -e '\033[0;32m✓ Step 4/5 完成\033[0m'
 else
@@ -333,15 +440,9 @@ SECONDS=\$((DURATION % 60))
 DURATION_STR=\$(printf '%02d:%02d:%02d' \$HOURS \$MINUTES \$SECONDS)
 
 # 收集数据集大小
-GRPO_DATASET_SIZE=0
-if [[ -f data/grpo_datasets/\${START_DATE}_grpo/grpo_dataset.json ]]; then
-    GRPO_DATASET_SIZE=\$(wc -l < data/grpo_datasets/\${START_DATE}_grpo/grpo_dataset.json)
-fi
+GRPO_DATASET_SIZE=\$(python -c 'import os, glob, json; d=os.environ.get(\"GRPO_DATA_DIR\", \"\"); files=glob.glob(os.path.join(d, \"*\", \"grpo_dataset.json\")); print(sum(len(json.load(open(p, \"r\", encoding=\"utf-8\"))) for p in files))' 2>/dev/null || echo 0)
 
-SFT_DATASET_SIZE=0
-if [[ -f data/sft_datasets/sft_dataset.json ]]; then
-    SFT_DATASET_SIZE=\$(wc -l < data/sft_datasets/sft_dataset.json)
-fi
+SFT_DATASET_SIZE=\$(python -c 'import os, json; p=os.environ.get(\"SFT_DATA_FILE\", \"\"); print(len(json.load(open(p, \"r\", encoding=\"utf-8\"))) if p and os.path.isfile(p) else 0)' 2>/dev/null || echo 0)
 
 # 输出训练摘要
 echo ''
@@ -352,8 +453,8 @@ echo '数据验证: ✓ 通过 ('\${VALIDATION_DURATION}'秒)'
 echo \"训练时间: \${DURATION_STR}\"
 echo \"GRPO数据集: \${GRPO_DATASET_SIZE} 条\"
 echo \"SFT数据集: \${SFT_DATASET_SIZE} 条\"
-echo \"SFT模型: outputs/\${START_DATE}_sft/\"
-echo \"GRPO模型: outputs/\${START_DATE}_grpo/\"
+echo \"SFT模型: \${SFT_MODEL_DIR}\"
+echo \"GRPO模型: \${GRPO_MODEL_DIR}\"
 echo '=========================================='
 " 2>&1 | tee "${LOG_FILE}"; EXIT_CODE=${PIPESTATUS[0]}
 
