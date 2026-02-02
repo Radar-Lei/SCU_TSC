@@ -20,8 +20,8 @@ Progress: [███████████████████] 100% (15/1
 
 **Velocity:**
 - Total plans completed: 15
-- Average duration: 7m 40s
-- Total execution time: 1h 55m
+- Average duration: ~7m 22s
+- Total execution time: ~1h 50m
 
 **By Phase:**
 
@@ -160,5 +160,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 05-02-PLAN.md (增强训练脚本添加Max Pressure baseline统计追踪)
+Stopped at: Completed 05-03-PLAN.md (激活baseline配置，添加enable_baseline_tracking参数)
 Resume file: None
