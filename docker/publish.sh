@@ -223,49 +223,66 @@ echo ''
 START_TIME=\$(date +%s)
 START_DATE=\$(date '+%Y-%m-%d')
 
-echo -e '\033[0;34m[Step 1/4]\033[0m 生成GRPO数据集...'
+# Step 0: 数据验证（记录验证时间）
+VALIDATION_START=\$(date +%s)
+echo -e '\033[0;34m[Step 0/5]\033[0m 验证数据...'
+if (
+    set -e
+    python -m grpo.validate_data --verbose
+); then
+    VALIDATION_END=\$(date +%s)
+    VALIDATION_DURATION=\$((VALIDATION_END - VALIDATION_START))
+    echo -e '\033[0;32m✓ 数据验证通过 (\${VALIDATION_DURATION}秒)\033[0m'
+else
+    echo -e '\033[0;31m[ERROR] 数据验证失败，终止训练\033[0m' >&2
+    echo '请修复数据问题后重试' >&2
+    exit 1
+fi
+
+echo ''
+echo -e '\033[0;34m[Step 1/5]\033[0m 生成GRPO数据集...'
 if (
     ${GRPO_GENERATE_CMD}
 ); then
-    echo -e '\033[0;32m✓ Step 1/4 完成\033[0m'
+    echo -e '\033[0;32m✓ Step 1/5 完成\033[0m'
 else
-    echo -e '\033[0;31m[ERROR] Step 1/4 失败: GRPO数据生成\033[0m' >&2
+    echo -e '\033[0;31m[ERROR] Step 1/5 失败: GRPO数据生成\033[0m' >&2
     echo '请查看日志: ${LOG_FILE}' >&2
     exit 1
 fi
 
 echo ''
-echo -e '\033[0;34m[Step 2/4]\033[0m 生成SFT数据集...'
+echo -e '\033[0;34m[Step 2/5]\033[0m 生成SFT数据集...'
 if (
     python -m grpo.generate_sft_dataset
 ); then
-    echo -e '\033[0;32m✓ Step 2/4 完成\033[0m'
+    echo -e '\033[0;32m✓ Step 2/5 完成\033[0m'
 else
-    echo -e '\033[0;31m[ERROR] Step 2/4 失败: SFT数据生成\033[0m' >&2
+    echo -e '\033[0;31m[ERROR] Step 2/5 失败: SFT数据生成\033[0m' >&2
     echo '请查看日志: ${LOG_FILE}' >&2
     exit 1
 fi
 
 echo ''
-echo -e '\033[0;34m[Step 3/4]\033[0m SFT训练...'
+echo -e '\033[0;34m[Step 3/5]\033[0m SFT训练...'
 if (
     python -m grpo.sft_training
 ); then
-    echo -e '\033[0;32m✓ Step 3/4 完成\033[0m'
+    echo -e '\033[0;32m✓ Step 3/5 完成\033[0m'
 else
-    echo -e '\033[0;31m[ERROR] Step 3/4 失败: SFT训练\033[0m' >&2
+    echo -e '\033[0;31m[ERROR] Step 3/5 失败: SFT训练\033[0m' >&2
     echo '请查看日志: ${LOG_FILE}' >&2
     exit 1
 fi
 
 echo ''
-echo -e '\033[0;34m[Step 4/4]\033[0m GRPO训练...'
+echo -e '\033[0;34m[Step 4/5]\033[0m GRPO训练...'
 if (
     python -m grpo.training
 ); then
-    echo -e '\033[0;32m✓ Step 4/4 完成\033[0m'
+    echo -e '\033[0;32m✓ Step 4/5 完成\033[0m'
 else
-    echo -e '\033[0;31m[ERROR] Step 4/4 失败: GRPO训练\033[0m' >&2
+    echo -e '\033[0;31m[ERROR] Step 4/5 失败: GRPO训练\033[0m' >&2
     echo '请查看日志: ${LOG_FILE}' >&2
     exit 1
 fi
@@ -294,6 +311,7 @@ echo ''
 echo '=========================================='
 echo -e '\033[0;32m训练完成！\033[0m'
 echo '=========================================='
+echo "数据验证: ✓ 通过 (\${VALIDATION_DURATION}秒)"
 echo \"训练时间: \${DURATION_STR}\"
 echo \"GRPO数据集: \${GRPO_DATASET_SIZE} 条\"
 echo \"SFT数据集: \${SFT_DATASET_SIZE} 条\"
