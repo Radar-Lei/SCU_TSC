@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2025-02-02)
 ## Current Position
 
 Phase: 3 of 4 (训练流程集成)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-02 — Completed 03-01-PLAN.md (docker/publish.sh完善)
+Last activity: 2026-02-02 — Completed 03-02-PLAN.md (数据验证脚本)
 
-Progress: [███░░░░░░░░░░░░░░░░░░░] 17% (1/3 plans in Phase 3)
+Progress: [█████░░░░░░░░░░░░░░░░] 33% (2/3 plans in Phase 3)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 6m 2s
-- Total execution time: 48m 0s
+- Total plans completed: 9
+- Average duration: 5m 36s
+- Total execution time: 50m 18s
 
 **By Phase:**
 
@@ -29,11 +29,11 @@ Progress: [███░░░░░░░░░░░░░░░░░░░] 1
 |-------|-------|-------|----------|
 | 1. GRPO训练核心基础设施 | 4 | 4 | 7m 48s |
 | 2. Max Pressure算法和配置管理 | 3 | 3 | 5m 16s |
-| 3. 训练流程集成 | 1 | 3 | 1m 43s |
+| 3. 训练流程集成 | 2 | 3 | 3m 30s |
 | 4. 测试、验证和完善 | 0 | 0 | - |
 
 **Recent Trend:**
-- Last 5 plans: 4m 22s
+- Last 5 plans: 3m 53s
 - Trend: Accelerating
 
 *Updated after each plan completion*
@@ -95,6 +95,14 @@ Recent decisions affecting current work:
 - 失败快速停止：子shell错误捕获+红色错误信息+exit 1
 - 训练摘要输出：训练时间+数据集大小+模型路径（outputs/YYYY-MM-DD_sft/和outputs/YYYY-MM-DD_grpo/）
 
+**From 03-02:**
+- 数据验证脚本采用静默成功模式（验证通过时不输出，失败时输出详细错误）
+- SUMO状态文件采用抽样验证策略（默认10个文件）实现快速验证
+- ValidationResult统一收集器模式（errors + warnings，格式化输出）
+- 退出码标准化：0=通过、1=验证失败、2=意外错误
+- 模块化验证函数设计（validate_grpo_dataset、validate_sft_dataset、validate_sumo_state_files、validate_config_and_environment）
+- CLI支持多种验证组合（--grpo-only、--sft-only、--verify-sumo、--check-env、--verbose）
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -111,5 +119,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 03-01-PLAN.md (docker/publish.sh完善)
+Stopped at: Completed 03-02-PLAN.md (数据验证脚本)
 Resume file: None
