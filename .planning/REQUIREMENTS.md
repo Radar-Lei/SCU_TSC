@@ -114,17 +114,75 @@
 
 ## Traceability (需求到阶段映射)
 
-*此部分将在创建ROADMAP.md时填充*
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (待填充) | (待填充) | Pending |
+| DG-01 | Phase 1 | Pending |
+| DG-02 | Phase 1 | Pending |
+| DG-03 | Phase 1 | Pending |
+| DG-04 | Phase 1 | Pending |
+| DG-05 | Phase 1 | Pending |
+| DG-06 | Phase 1 | Pending |
+| DG-07 | Phase 1 | Pending |
+| DG-08 | Phase 1 | Pending |
+| DG-09 | Phase 1 | Pending |
+| DG-10 | Phase 1 | Pending |
+| DG-11 | Phase 1 | Pending |
+| DF-01 | Phase 1 | Pending |
+| DF-02 | Phase 1 | Pending |
+| DF-03 | Phase 1 | Pending |
+| DF-04 | Phase 1 | Pending |
+| DF-05 | Phase 1 | Pending |
+| DF-06 | Phase 1 | Pending |
+| DF-07 | Phase 1 | Pending |
+| AR-01 | Phase 1 | Pending |
+| AR-02 | Phase 1 | Pending |
+| AR-03 | Phase 1 | Pending |
+| AR-04 | Phase 1 | Pending |
+| RW-01 | Phase 2 | Pending |
+| RW-02 | Phase 2 | Pending |
+| RW-03 | Phase 2 | Pending |
+| RW-04 | Phase 2 | Pending |
+| RW-05 | Phase 2 | Pending |
+| RW-06 | Phase 2 | Pending |
+| RW-07 | Phase 2 | Pending |
+| RW-08 | Phase 2 | Pending |
+| RW-09 | Phase 2 | Pending |
+| RW-10 | Phase 2 | Pending |
+| SFT-01 | Phase 3 | Pending |
+| SFT-02 | Phase 3 | Pending |
+| SFT-03 | Phase 3 | Pending |
+| SFT-04 | Phase 3 | Pending |
+| TR-01 | Phase 3 | Pending |
+| TR-02 | Phase 3 | Pending |
+| TR-03 | Phase 3 | Pending |
+| TR-04 | Phase 3 | Pending |
+| TR-05 | Phase 3 | Pending |
+| TR-06 | Phase 3 | Pending |
+| TR-07 | Phase 3 | Pending |
+| TR-08 | Phase 3 | Pending |
+| TR-09 | Phase 3 | Pending |
+| TR-10 | Phase 3 | Pending |
+| TR-11 | Phase 3 | Pending |
+| AR-05 | Phase 3 | Pending |
+| AR-06 | Phase 3 | Pending |
+| AR-07 | Phase 3 | Pending |
+| IF-01 | Phase 4 | Pending |
+| IF-02 | Phase 4 | Pending |
+| IF-03 | Phase 4 | Pending |
+| IF-04 | Phase 4 | Pending |
+| IF-05 | Phase 4 | Pending |
 
 **Coverage:**
 - v0.1 requirements: 46 total
-- Mapped to phases: 0 (待roadmap创建)
-- Unmapped: 46 ⚠️
+- Mapped to phases: 46 ✓
+- Unmapped: 0 ✓
+
+**Phase分布:**
+- Phase 1 (数据生成架构重构): 22 requirements
+- Phase 2 (Reward函数重构): 10 requirements
+- Phase 3 (GRPO训练集成): 11 requirements
+- Phase 4 (验证与优化): 5 requirements
 
 ---
 *Requirements defined: 2026-02-03*
-*Last updated: 2026-02-03 after initial definition*
+*Last updated: 2026-02-03 after roadmap creation*
