@@ -19,6 +19,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# 获取当前用户信息（用于文件权限）
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -128,7 +132,12 @@ fi
 
 # 构建镜像
 echo "[publish] building image ${IMAGE_NAME}:${IMAGE_TAG} from ${DOCKERFILE}"
-docker build -t "${IMAGE_NAME}:${IMAGE_TAG}" -f "${DOCKERFILE}" "${SCRIPT_DIR}/.."
+docker build \
+  --build-arg "USER_ID=${HOST_UID}" \
+  --build-arg "GROUP_ID=${HOST_GID}" \
+  -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+  -f "${DOCKERFILE}" \
+  "${SCRIPT_DIR}/.."
 
 # 创建目录
 mkdir -p "${HOST_MODEL_DIR}"
@@ -165,7 +174,7 @@ docker run \
   --shm-size=32GB \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \
-  --entrypoint /bin/bash \
+  --entrypoint /usr/bin/bash \
   -v "${HOST_MODEL_DIR}:/home/samuel/SCU_TSC/model:rw" \
   -v "${HOST_DATA_DIR}:/home/samuel/SCU_TSC/data:rw" \
   -v "${PROJECT_DIR}:${CONTAINER_WORKDIR}:rw" \
