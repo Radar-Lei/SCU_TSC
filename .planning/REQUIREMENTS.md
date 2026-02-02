@@ -38,7 +38,7 @@
 
 ### Max Pressure算法
 
-- [ ] **MAXP-01**: 实现Max Pressure算法
+- [x] **MAXP-01**: 实现Max Pressure算法
   - 输入：各相位的平均排队车辆数
   - 逻辑：找出所有相位中排队数最大的相位
   - 输出：建议是否延长当前相位
@@ -47,27 +47,27 @@
 
 ### 配置管理
 
-- [ ] **CONFIG-01**: 创建中央训练配置文件
+- [x] **CONFIG-01**: 创建中央训练配置文件
   - SFT训练超参数：learning_rate, batch_size, num_epochs等
   - GRPO训练超参数：learning_rate, temperature, num_generations等
   - Reward函数权重：format_reward_weight, tsc_reward_weight
   - 仿真参数：extend_seconds, max_steps等
   - 支持不同环境的配置切换（如dev、test、prod）
 
-- [ ] **CONFIG-02**: 实现配置加载逻辑
+- [x] **CONFIG-02**: 实现配置加载逻辑
   - 优先级：命令行参数 > 配置文件 > 默认值
   - 支持YAML格式的配置文件
   - 配置验证：检查必需参数和参数范围
 
 ### 训练流程集成
 
-- [ ] **TRAIN-01**: 完善 `docker/publish.sh`
+- [x] **TRAIN-01**: 完善 `docker/publish.sh`
   - 四步流程：GRPO数据 → SFT数据 → SFT训练 → GRPO训练
   - 每步失败时停止并报告错误
   - 完整的日志记录
   - 训练结束后的模型输出路径报告
 
-- [ ] **TRAIN-02**: 添加数据验证步骤
+- [x] **TRAIN-02**: 添加数据验证步骤
   - 验证GRPO数据集格式正确性
   - 检查SUMO状态文件可加载
   - 测试prompt格式符合要求
@@ -75,12 +75,12 @@
 
 ### 测试和验证
 
-- [ ] **TEST-01**: 单元测试
+- [x] **TEST-01**: 单元测试
   - 测试format_reward_fn的边界情况
   - 测试Max Pressure算法的正确性
   - 测试配置加载和参数验证
 
-- [ ] **TEST-02**: 集成测试
+- [x] **TEST-02**: 集成测试
   - 小规模训练验证（少量数据、少量步数）
   - 端到端流程测试
   - 验证reward函数组合工作正常
@@ -109,13 +109,13 @@ Deferred to future release.
 | GRPO-02 | Phase 1 | Complete |
 | GRPO-03 | Phase 1 | Complete |
 | GRPO-04 | Phase 1 | Complete |
-| MAXP-01 | Phase 2 | Pending |
-| CONFIG-01 | Phase 2 | Pending |
-| CONFIG-02 | Phase 2 | Pending |
-| TRAIN-01 | Phase 3 | Pending |
-| TRAIN-02 | Phase 3 | Pending |
-| TEST-01 | Phase 4 | Pending |
-| TEST-02 | Phase 4 | Pending |
+| MAXP-01 | Phase 2 | Complete |
+| CONFIG-01 | Phase 2 | Complete |
+| CONFIG-02 | Phase 2 | Complete |
+| TRAIN-01 | Phase 3 | Complete |
+| TRAIN-02 | Phase 3 | Complete |
+| TEST-01 | Phase 4 | Complete |
+| TEST-02 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 11 total
