@@ -5,35 +5,35 @@
 See: .planning/PROJECT.md (updated 2025-02-02)
 
 **Core value:** 模型能够根据SUMO仿真状态的相位排队信息，准确判断是否延长当前绿灯相位，以最小化整个交叉口的排队车辆数。
-**Current focus:** Phase 1: GRPO训练核心基础设施
+**Current focus:** Phase 2: Max Pressure算法和配置管理
 
 ## Current Position
 
 Phase: 2 of 4 (Max Pressure算法和配置管理)
-Plan: 0 of 3 in current phase
-Status: Phase 2 ready to start
-Last activity: 2026-02-02 — Phase 1 complete, 4/4 plans executed
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-02 — Completed 02-01-PLAN.md (Max Pressure算法实现)
 
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (Phase 2 ready)
+Progress: [██░░░░░░░░░░░░░░░░░░░] 33% (1/3 plans in Phase 2)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 7m 48s
-- Total execution time: 31m 12s
+- Total plans completed: 5
+- Average duration: 9m 6s
+- Total execution time: 45m 34s
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. GRPO训练核心基础设施 | 4 | 4 | 7m 48s |
-| 2. Max Pressure算法和配置管理 | 0 | 0 | - |
+| 2. Max Pressure算法和配置管理 | 1 | 3 | 22m 0s |
 | 3. 训练流程集成 | 0 | 0 | - |
 | 4. 测试、验证和完善 | 0 | 0 | - |
 
 **Recent Trend:**
-- Last 5 plans: 7m 48s
+- Last 5 plans: 9m 6s
 - Trend: On track
 
 *Updated after each plan completion*
@@ -69,6 +69,12 @@ Recent decisions affecting current work:
 - 批量处理优化：只对format有效（strict或partial）的样本运行TSC仿真
 - Reward统计信息：每次计算后打印format准确率和平均reward，便于训练监控
 
+**From 02-01:**
+- Max Pressure算法采用简化版公式：pressure = queue_count（完整公式需upstream-downstream，但只有avg_queue_veh）
+- 保守的错误处理策略：prompt解析失败时返回'no'（切换相位），避免不安全决策
+- 时间约束优先级：最小绿/最大绿时间约束优先于压力比较
+- Phase ID类型规范化：JSON字符串键转换为int，避免类型不匹配
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -84,5 +90,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 01-04-PLAN.md (Phase 1 complete)
+Stopped at: Completed 02-01-PLAN.md (Max Pressure算法实现)
 Resume file: None
