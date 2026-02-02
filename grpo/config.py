@@ -195,22 +195,32 @@ class GRPOTrainingConfig:
         """参数验证"""
         # 验证数值范围
         if self.learning_rate <= 0:
-            raise ValueError(f"learning_rate必须大于0，当前值: {self.learning_rate}")
+            raise ValueError(f"grpo.learning_rate必须大于0，当前值: {self.learning_rate}")
 
         if self.batch_size <= 0:
-            raise ValueError(f"batch_size必须大于0，当前值: {self.batch_size}")
+            raise ValueError(f"grpo.batch_size必须大于0，当前值: {self.batch_size}")
 
         if self.num_generations <= 0:
-            raise ValueError(f"num_generations必须大于0，当前值: {self.num_generations}")
+            raise ValueError(f"grpo.num_generations必须大于0，当前值: {self.num_generations}")
 
         if not (0 <= self.temperature <= 2):
-            raise ValueError(f"temperature必须在[0, 2]范围内，当前值: {self.temperature}")
+            raise ValueError(f"grpo.temperature必须在[0, 2]范围内，当前值: {self.temperature}")
 
         if not (0 <= self.top_p <= 1):
-            raise ValueError(f"top_p必须在[0, 1]范围内，当前值: {self.top_p}")
+            raise ValueError(f"grpo.top_p必须在[0, 1]范围内，当前值: {self.top_p}")
 
         if self.kl_coeff < 0:
-            raise ValueError(f"kl_coeff必须非负，当前值: {self.kl_coeff}")
+            raise ValueError(f"grpo.kl_coeff必须非负，当前值: {self.kl_coeff}")
+
+        # 新增验证
+        if self.num_train_epochs <= 0:
+            raise ValueError(f"grpo.num_train_epochs必须大于0，当前值: {self.num_train_epochs}")
+
+        if self.gradient_accumulation_steps <= 0:
+            raise ValueError(f"grpo.gradient_accumulation_steps必须大于0，当前值: {self.gradient_accumulation_steps}")
+
+        if not (0 <= self.repetition_penalty <= 2):
+            raise ValueError(f"grpo.repetition_penalty必须在[0, 2]范围内，当前值: {self.repetition_penalty}")
 
         # 确保输出目录存在
         os.makedirs(self.output_dir, exist_ok=True)
@@ -341,6 +351,24 @@ class SFTTrainingConfig:
     eval_limit: int = 100
     eval_steps: int = 30
 
+    def __post_init__(self):
+        """参数验证"""
+        # 数值范围验证
+        if self.learning_rate <= 0 or self.learning_rate > 1:
+            raise ValueError(f"sft.learning_rate必须在(0, 1]范围内，当前值: {self.learning_rate}")
+
+        if self.batch_size <= 0:
+            raise ValueError(f"sft.batch_size必须大于0，当前值: {self.batch_size}")
+
+        if self.lora_rank <= 0:
+            raise ValueError(f"sft.lora_rank必须大于0，当前值: {self.lora_rank}")
+
+        if not (0 < self.eval_percent < 1):
+            raise ValueError(f"sft.eval_percent必须在(0, 1)范围内，当前值: {self.eval_percent}")
+
+        if self.num_epochs <= 0:
+            raise ValueError(f"sft.num_epochs必须大于0，当前值: {self.num_epochs}")
+
 
 @dataclass
 class SimulationConfig:
@@ -363,6 +391,32 @@ class SimulationConfig:
     # 并行参数
     max_workers: int = 4
     port_range: List[int] = field(default_factory=lambda: [10000, 60000])
+
+    def __post_init__(self):
+        """参数验证"""
+        if self.time_step <= 0:
+            raise ValueError(f"simulation.time_step必须大于0，当前值: {self.time_step}")
+
+        if self.max_time <= 0:
+            raise ValueError(f"simulation.max_time必须大于0，当前值: {self.max_time}")
+
+        if self.extend_seconds <= 0:
+            raise ValueError(f"simulation.extend_seconds必须大于0，当前值: {self.extend_seconds}")
+
+        if self.min_green_time >= self.max_green_time:
+            raise ValueError(f"simulation.min_green_time({self.min_green_time})必须小于max_green_time({self.max_green_time})")
+
+        if self.min_green_offset_range < 0:
+            raise ValueError(f"simulation.min_green_offset_range必须非负，当前值: {self.min_green_offset_range}")
+
+        if self.max_green_offset_range < 0:
+            raise ValueError(f"simulation.max_green_offset_range必须非负，当前值: {self.max_green_offset_range}")
+
+        if self.max_workers < 0:
+            raise ValueError(f"simulation.max_workers必须非负，当前值: {self.max_workers}")
+
+        if len(self.port_range) != 2 or self.port_range[0] >= self.port_range[1]:
+            raise ValueError(f"simulation.port_range必须是[start, end]格式且start < end，当前值: {self.port_range}")
 
 
 @dataclass
@@ -388,11 +442,26 @@ class FormatRewardSectionConfig:
     invalid: float = -10.0
     extract_regex: str = r'\{["\s]*extend["\s]*:\s*["\s]*(yes|no)["\s]*(?:,|\})'
 
+    def __post_init__(self):
+        """参数验证"""
+        # strict应该大于partial
+        if self.strict < self.partial:
+            raise ValueError(f"reward.format.strict({self.strict})应该大于partial({self.partial})")
+
+        # partial应该大于invalid
+        if self.partial < self.invalid:
+            raise ValueError(f"reward.format.partial({self.partial})应该大于invalid({self.invalid})")
+
 
 @dataclass
 class TSCRewardSectionConfig:
     """TSC Reward配置段"""
     reward_scale: float = 10.0
+
+    def __post_init__(self):
+        """参数验证"""
+        if self.reward_scale <= 0:
+            raise ValueError(f"reward.tsc.reward_scale必须大于0，当前值: {self.reward_scale}")
 
 
 @dataclass
@@ -402,6 +471,14 @@ class RewardSectionConfig:
     format: FormatRewardSectionConfig = field(default_factory=FormatRewardSectionConfig)
     tsc: TSCRewardSectionConfig = field(default_factory=TSCRewardSectionConfig)
     max_pressure: MaxPressureConfig = field(default_factory=MaxPressureConfig)
+
+    def __post_init__(self):
+        """参数验证"""
+        if self.chain.get("format_weight", 1.0) < 0:
+            raise ValueError(f"reward.format_weight必须非负，当前值: {self.chain.get('format_weight')}")
+
+        if self.chain.get("tsc_weight", 1.0) < 0:
+            raise ValueError(f"reward.tsc_weight必须非负，当前值: {self.chain.get('tsc_weight')}")
 
 
 @dataclass
@@ -464,6 +541,12 @@ class TrainingConfig:
                     tsc=TSCRewardSectionConfig(**tsc_data),
                     max_pressure=MaxPressureConfig(**max_pressure_data)
                 )
+
+        # 验证必需参数存在
+        required_training_keys = ['sft', 'grpo']
+        for key in required_training_keys:
+            if key not in self.training:
+                raise ValueError(f"training.{key}是必需参数，但配置文件中缺失")
 
     @classmethod
     def from_yaml(cls, path: str) -> "TrainingConfig":
