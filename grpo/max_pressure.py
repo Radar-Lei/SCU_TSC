@@ -9,6 +9,7 @@ Max Pressure是交通信号控制领域的经典算法，根据各相位的排�
 该算法将作为GRPO训练中reward计算的baseline参考。
 """
 
+import json
 from dataclasses import dataclass
 from typing import Dict, List
 
@@ -202,8 +203,6 @@ def max_pressure_decision_from_prompt(
         ... )
         >>> assert decision == 'yes'
     """
-    import json
-
     # 解析prompt
     data = json.loads(prompt)
 
@@ -213,7 +212,7 @@ def max_pressure_decision_from_prompt(
     # 提取各相位排队数
     phase_metrics = data["state"]["phase_metrics_by_id"]
     phase_queues = {
-        phase_id: metrics["avg_queue_veh"]
+        int(phase_id): metrics["avg_queue_veh"]
         for phase_id, metrics in phase_metrics.items()
     }
 
