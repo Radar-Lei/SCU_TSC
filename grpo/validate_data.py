@@ -26,7 +26,51 @@ from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 
 # 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT_DIR)
+
+
+# ============== 容器环境检测 ==============
+
+def is_running_in_container() -> bool:
+    """
+    检测是否在容器内运行
+
+    Returns:
+        bool: 是否在容器内
+    """
+    # 方法1: 检查 /proc/1/cgroup
+    try:
+        with open('/proc/1/cgroup', 'r') as f:
+            content = f.read()
+            if 'docker' in content or 'lxc' in content or 'kubepods' in content:
+                return True
+    except (FileNotFoundError, PermissionError):
+        pass
+
+    # 方法2: 检查环境变量
+    if os.environ.get(' container') is not None:
+        return True
+
+    return False
+
+
+def get_project_dir() -> str:
+    """
+    获取项目根目录（容器环境适配）
+
+    Returns:
+        str: 项目根目录的绝对路径
+    """
+    if is_running_in_container():
+        # 容器内使用固定路径
+        return "/home/samuel/SCU_TSC"
+    else:
+        # 主机环境使用PROJECT_DIR或通过路径解析
+        if "PROJECT_DIR" in os.environ:
+            return os.environ["PROJECT_DIR"]
+        # 自动检测（当前文件所在目录的父目录）
+        return PROJECT_DIR
 
 
 # ============== 验证结果收集 ==============
@@ -81,7 +125,7 @@ class ValidationResult:
 # ============== GRPO数据集验证 ==============
 
 def validate_grpo_dataset(
-    grpo_datasets_dir: str = "/home/samuel/SCU_TSC/data/grpo_datasets",
+    grpo_datasets_dir: Optional[str] = None,
     verbose: bool = False
 ) -> ValidationResult:
     """
@@ -96,13 +140,18 @@ def validate_grpo_dataset(
     6. state_file路径存在性检查
 
     Args:
-        grpo_datasets_dir: GRPO数据集根目录
+        grpo_datasets_dir: GRPO数据集根目录（None则自动检测）
         verbose: 是否显示详细进度信息
 
     Returns:
         ValidationResult对象
     """
     result = ValidationResult("GRPO数据集")
+
+    # 自动检测路径
+    if grpo_datasets_dir is None:
+        project_dir = get_project_dir()
+        grpo_datasets_dir = os.path.join(project_dir, "data/grpo_datasets")
 
     if verbose:
         print(f"验证GRPO数据集: {grpo_datasets_dir}")
@@ -205,7 +254,7 @@ def validate_grpo_dataset(
 # ============== SFT数据集验证 ==============
 
 def validate_sft_dataset(
-    sft_dataset_file: str = "/home/samuel/SCU_TSC/data/sft_datasets/sft_dataset.json",
+    sft_dataset_file: Optional[str] = None,
     verbose: bool = False
 ) -> ValidationResult:
     """
@@ -221,13 +270,18 @@ def validate_sft_dataset(
        - assistant.content是有效JSON且格式为{"extend": "yes"|"no"}
 
     Args:
-        sft_dataset_file: SFT数据集文件路径
+        sft_dataset_file: SFT数据集文件路径（None则自动检测）
         verbose: 是否显示详细进度信息
 
     Returns:
         ValidationResult对象
     """
     result = ValidationResult("SFT数据集")
+
+    # 自动检测路径
+    if sft_dataset_file is None:
+        project_dir = get_project_dir()
+        sft_dataset_file = os.path.join(project_dir, "data/sft_datasets/sft_dataset.json")
 
     if verbose:
         print(f"验证SFT数据集: {sft_dataset_file}")
@@ -333,7 +387,7 @@ def validate_sft_dataset(
 # ============== SUMO状态文件验证 ==============
 
 def validate_sumo_state_files(
-    grpo_datasets_dir: str = "/home/samuel/SCU_TSC/data/grpo_datasets",
+    grpo_datasets_dir: Optional[str] = None,
     sample_size: int = 10,
     verbose: bool = False
 ) -> ValidationResult:
@@ -347,7 +401,7 @@ def validate_sumo_state_files(
     4. 根元素：根元素是<snapshot>
 
     Args:
-        grpo_datasets_dir: GRPO数据集根目录
+        grpo_datasets_dir: GRPO数据集根目录（None则自动检测）
         sample_size: 抽样数量
         verbose: 是否显示详细进度信息
 
@@ -355,6 +409,11 @@ def validate_sumo_state_files(
         ValidationResult对象
     """
     result = ValidationResult("SUMO状态文件")
+
+    # 自动检测路径
+    if grpo_datasets_dir is None:
+        project_dir = get_project_dir()
+        grpo_datasets_dir = os.path.join(project_dir, "data/grpo_datasets")
 
     if verbose:
         print(f"验证SUMO状态文件（抽样{sample_size}个）")
@@ -433,7 +492,7 @@ def validate_sumo_state_files(
 # ============== 配置和系统依赖验证 ==============
 
 def validate_config_and_environment(
-    config_file: str = "/home/samuel/SCU_TSC/config/training_config.yaml",
+    config_file: Optional[str] = None,
     verbose: bool = False
 ) -> ValidationResult:
     """
@@ -446,13 +505,18 @@ def validate_config_and_environment(
     4. SUMO环境
 
     Args:
-        config_file: 配置文件路径
+        config_file: 配置文件路径（None则自动检测）
         verbose: 是否显示详细进度信息
 
     Returns:
         ValidationResult对象
     """
     result = ValidationResult("配置和环境")
+
+    # 自动检测路径
+    if config_file is None:
+        project_dir = get_project_dir()
+        config_file = os.path.join(project_dir, "config/training_config.yaml")
 
     if verbose:
         print(f"验证配置文件: {config_file}")
@@ -571,24 +635,31 @@ def parse_args():
         help="显示详细进度信息"
     )
 
+    # 环境选项
+    parser.add_argument(
+        "--container-mode",
+        action="store_true",
+        help="强制使用容器模式路径（/home/samuel/SCU_TSC）"
+    )
+
     # 路径选项
     parser.add_argument(
         "--grpo-dir",
         type=str,
-        default="/home/samuel/SCU_TSC/data/grpo_datasets",
-        help="GRPO数据集目录 (默认: /home/samuel/SCU_TSC/data/grpo_datasets)"
+        default=None,
+        help="GRPO数据集目录（默认: 自动检测）"
     )
     parser.add_argument(
         "--sft-file",
         type=str,
-        default="/home/samuel/SCU_TSC/data/sft_datasets/sft_dataset.json",
-        help="SFT数据集文件 (默认: /home/samuel/SCU_TSC/data/sft_datasets/sft_dataset.json)"
+        default=None,
+        help="SFT数据集文件（默认: 自动检测）"
     )
     parser.add_argument(
         "--config-file",
         type=str,
-        default="/home/samuel/SCU_TSC/config/training_config.yaml",
-        help="配置文件 (默认: /home/samuel/SCU_TSC/config/training_config.yaml)"
+        default=None,
+        help="配置文件（默认: 自动检测）"
     )
     parser.add_argument(
         "--sample-size",
@@ -604,6 +675,12 @@ def main():
     args = parse_args()
 
     try:
+        # 处理容器模式
+        if args.container_mode:
+            os.environ["VALIDATION_CONTAINER_MODE"] = "1"
+            if args.verbose:
+                print("容器模式：使用固定路径 /home/samuel/SCU_TSC")
+
         # 确定要运行的验证
         results = []
 
@@ -642,17 +719,19 @@ def main():
 
         # 输出结果
         if all_outputs:
-            print("\n" + "\n".join(all_outputs))
+            print("\n" + "\n".join(all_outputs), file=sys.stderr if has_errors else sys.stdout)
             return 1 if has_errors else 0
         else:
             # 所有验证通过，静默成功
+            if args.verbose:
+                print("\n✓ 所有验证通过")
             return 0
 
     except Exception as e:
         # 捕获意外错误
-        print(f"[ERROR] 发生意外错误: {e}")
+        print(f"[ERROR] 发生意外错误: {e}", file=sys.stderr)
         import traceback
-        traceback.print_exc()
+        traceback.print_exc(file=sys.stderr)
         return 2
 
 
