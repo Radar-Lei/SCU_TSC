@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2025-02-02)
 ## Current Position
 
 Phase: 5 of 5 (Max Pressure Baseline集成)
-Plan: 2 of 2 in current phase
+Plan: 4 of 4 in current phase
 Status: Phase 5 complete ✓
-Last activity: 2026-02-02 — Completed 05-02-PLAN.md (增强训练脚本添加Max Pressure baseline统计追踪)
+Last activity: 2026-02-02 — Completed 05-04-PLAN.md (编写单元测试验证baseline比较和统计功能)
 
-Progress: [███████████████████] 100% (15/15 total plans, 2/2 in Phase 5)
+Progress: [███████████████████] 100% (18/18 total plans, 4/4 in Phase 5)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 15
-- Average duration: ~7m 22s
-- Total execution time: ~1h 50m
+- Total plans completed: 18
+- Average duration: ~6m 58s
+- Total execution time: ~2h 5m
 
 **By Phase:**
 
@@ -31,7 +31,7 @@ Progress: [███████████████████] 100% (15/1
 | 2. Max Pressure算法和配置管理 | 3 | 3 | 5m 16s |
 | 3. 训练流程集成 | 3 | 3 | 4m 25s |
 | 4. 测试、验证和完善 | 2 | 2 | 13m 30s |
-| 5. Max Pressure Baseline集成 | 2 | 2 | 4m 0s |
+| 5. Max Pressure Baseline集成 | 4 | 4 | 3m 30s |
 
 **Recent Trend:**
 - Last 5 plans: 8m 18s
@@ -143,6 +143,19 @@ Recent decisions affecting current work:
 - 时间参数保留：load_grpo_dataset()保留current_green_elapsed, min_green, max_green字段供baseline使用
 - 训练日志增强：train_grpo()打印baseline追踪状态和配置详情，reward_fn计算并显示Baseline Accuracy统计
 
+**From 05-03:**
+- 配置文件默认值调整：training_config.yaml中enable_baseline默认为false，保持向后兼容
+- 向后兼容的配置检测：使用getattr和hasattr检测配置对象是否有baseline相关字段
+- 配置验证增强：MaxPressureConfig验证参数范围，TrainingConfig添加enable_baseline字段
+- 配置传递链：从CLI → TrainingConfig → create_reward_function → compute_reward/batch_compute_reward
+- 文档和注释：添加配置使用说明和示例配置
+
+**From 05-04:**
+- Mock策略：使用unittest.mock隔离外部依赖（SUMO、Max Pressure算法），所有测试无需真实SUMO环境即可运行
+- 测试组织：按功能分组为4个测试类：TestComputeRewardWithBaseline、TestBatchComputeRewardWithBaseline、TestBaselineComparisonAndStats、TestBaselineEdgeCases
+- 边界覆盖：重点测试时间参数缺失、格式无效、错误处理等边界情况，确保baseline功能的鲁棒性
+- 测试覆盖率达到84%，所有16个测试用例通过
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -160,5 +173,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 05-03-PLAN.md (激活baseline配置，添加enable_baseline_tracking参数)
+Stopped at: Completed 05-04-PLAN.md (编写单元测试验证baseline比较和统计功能)
 Resume file: None
