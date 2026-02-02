@@ -311,7 +311,7 @@ echo ''
 echo '=========================================='
 echo -e '\033[0;32m训练完成！\033[0m'
 echo '=========================================='
-echo "数据验证: ✓ 通过 (\${VALIDATION_DURATION}秒)"
+echo '数据验证: ✓ 通过 ('\${VALIDATION_DURATION}'秒)'
 echo \"训练时间: \${DURATION_STR}\"
 echo \"GRPO数据集: \${GRPO_DATASET_SIZE} 条\"
 echo \"SFT数据集: \${SFT_DATASET_SIZE} 条\"
