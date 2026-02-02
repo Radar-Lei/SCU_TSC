@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2025-02-02)
 ## Current Position
 
 Phase: 4 of 4 (测试、验证和完善)
-Plan: 1 of 2 in current phase
-Status: Plan 04-01 complete
-Last activity: 2026-02-02 — Completed 04-01-PLAN.md (测试基础设施与单元测试)
+Plan: 2 of 2 in current phase
+Status: Plan 04-02 complete
+Last activity: 2026-02-02 — Completed 04-02-PLAN.md (端到端集成测试)
 
-Progress: [████████░░░░░░░░░░░░] 66% (11/16 total plans, 1/2 in Phase 4)
+Progress: [█████████░░░░░░░░░░░] 75% (12/16 total plans, 2/2 in Phase 4)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 7m 6s
-- Total execution time: 1h 18m
+- Total plans completed: 12
+- Average duration: 7m 0s
+- Total execution time: 1h 24m
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: [████████░░░░░░░░░░░░] 66% (11
 | 1. GRPO训练核心基础设施 | 4 | 4 | 7m 48s |
 | 2. Max Pressure算法和配置管理 | 3 | 3 | 5m 16s |
 | 3. 训练流程集成 | 3 | 3 | 4m 25s |
-| 4. 测试、验证和完善 | 1 | 2 | 20m 0s |
+| 4. 测试、验证和完善 | 2 | 2 | 12m 0s |
 
 **Recent Trend:**
-- Last 5 plans: 8m 12s
-- Trend: Stabilizing
+- Last 5 plans: 9m 6s
+- Trend: Stable
 
 *Updated after each plan completion*
 
@@ -121,6 +121,13 @@ Recent decisions affecting current work:
 - Docker测试执行脚本：scripts/run_tests.sh支持-u/-i/-a/-k参数
 - format_reward_fn添加None输入处理（Rule 1: Bug fix）
 
+**From 04-02:**
+- 完整四步流程集成测试：GRPO数据准备 → SFT数据准备 → SFT训练 → GRPO训练，验证整个训练链
+- 小规模快速验证策略：50条GRPO数据 + 20条SFT数据 + 10步训练，30分钟内完成测试
+- 日志验证机制：检查ERROR数量、loss信息、reward统计信息（format_accuracy、avg_tsc_reward、avg_final_reward）
+- 集成测试执行自动化脚本：scripts/run_integration_test.sh一键执行数据准备、测试运行、结果验证、临时文件清理
+- 辅助测试独立运行：格式验证、reward统计、推理测试共享训练输出，不重复训练
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -138,5 +145,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 04-01-PLAN.md (测试基础设施与单元测试)
+Stopped at: Completed 04-02-PLAN.md (端到端集成测试)
 Resume file: None
