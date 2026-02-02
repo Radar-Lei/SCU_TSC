@@ -13,7 +13,7 @@ import json
 import math
 import random
 import re
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Tuple
 from dataclasses import dataclass
 from types import SimpleNamespace
 
@@ -302,6 +302,141 @@ def tsc_reward_fn(
     return rewards
 
 
+def calculate_relative_baseline_reward(
+    state_file: str,
+    prompt: str,
+    model_decision: str,
+    config: Any,
+    mp_config: Any = None
+) -> Tuple[float, Dict[str, Any]]:
+    """
+    计算相对baseline的reward
+
+    同时运行模型决策和baseline决策的SUMO仿真，
+    返回相对优势作为reward
+
+    Args:
+        state_file: SUMO状态文件路径
+        prompt: 输入prompt（JSON格式）
+        model_decision: 模型决策 ("yes" 或 "no")
+        config: 配置对象（需包含sumocfg_path, extend_seconds等）
+        mp_config: Max Pressure配置对象（可选）
+
+    Returns:
+        (relative_reward, info_dict)
+    """
+    from .max_pressure import MaxPressureConfig, max_pressure_decision_from_prompt
+
+    if mp_config is None:
+        mp_config = MaxPressureConfig()
+
+    # 1. 计算baseline决策
+    prompt_data = json.loads(prompt)
+    green_elapsed = prompt_data.get("current_green_elapsed", 0)
+    min_green = prompt_data.get("min_green", 10.0)
+    max_green = prompt_data.get("max_green", 60.0)
+
+    baseline_decision = max_pressure_decision_from_prompt(
+        prompt=prompt,
+        green_elapsed=green_elapsed,
+        min_green=min_green,
+        max_green=max_green,
+        config=mp_config
+    )
+
+    # 2. 运行模型决策的SUMO仿真
+    model_result = calculate_tsc_reward_single(
+        state_file=state_file,
+        prompt=prompt,
+        decision=model_decision,
+        config=config
+    )
+
+    if not model_result.success:
+        return 0.0, {"error": "model_simulation_failed"}
+
+    # 3. 运行baseline决策的SUMO仿真
+    baseline_result = calculate_tsc_reward_single(
+        state_file=state_file,
+        prompt=prompt,
+        decision=baseline_decision,
+        config=config
+    )
+
+    if not baseline_result.success:
+        # baseline仿真失败，返回模型绝对reward
+        return model_result.reward, {
+            "model_reward": model_result.reward,
+            "baseline_reward": None,
+            "relative_reward": None,
+            "baseline_simulation_failed": True
+        }
+
+    # 4. 计算相对优势
+    # relative_delta = baseline_delta - model_delta
+    # 如果模型让队列减少更多（model_delta更负），relative_delta为正
+    # 此时应该给予正reward
+    relative_delta = baseline_result.delta - model_result.delta
+    reward_scale = getattr(config, 'reward_scale', 10.0)
+    # 注意：这里直接用 tanh(relative_delta/scale)，不加负号
+    # 因为 relative_delta 正 = 模型比baseline好 = 应获得正reward
+    import math
+    relative_reward = math.tanh(relative_delta / reward_scale)
+
+    # 调试输出
+    print(f"[RELATIVE DEBUG] model={model_decision}, baseline={baseline_decision}")
+    print(f"[RELATIVE DEBUG] model_delta={model_result.delta}, baseline_delta={baseline_result.delta}")
+    print(f"[RELATIVE DEBUG] relative_delta={relative_delta}, relative_reward={relative_reward}")
+
+    return relative_reward, {
+        "model_reward": model_result.reward,
+        "baseline_reward": baseline_result.reward,
+        "relative_reward": relative_reward,
+        "model_decision": model_decision,
+        "baseline_decision": baseline_decision,
+        "model_delta": model_result.delta,
+        "baseline_delta": baseline_result.delta,
+        "relative_delta": relative_delta
+    }
+
+
+def _relative_baseline_worker(
+    prompt: str,
+    output: str,
+    state_file: str,
+    config_dict: dict,
+    mp_config_dict: dict
+) -> Tuple[float, Dict[str, Any]]:
+    """
+    模块级别的worker函数，用于多进程池
+
+    这个函数必须在模块级别定义才能被pickle序列化。
+
+    Args:
+        prompt: 输入prompt
+        output: 模型输出
+        state_file: 状态文件路径
+        config_dict: 配置字典
+        mp_config_dict: Max Pressure配置字典
+
+    Returns:
+        (relative_reward, info_dict)
+    """
+    from .max_pressure import MaxPressureConfig
+
+    decision = extract_decision_from_output(output)
+    if decision is None:
+        return 0.0, {"error": "cannot_extract_decision"}
+
+    return calculate_relative_baseline_reward(
+        state_file=state_file,
+        prompt=prompt,
+        model_decision=decision,
+        config=SimpleNamespace(**config_dict),
+        mp_config=MaxPressureConfig(**mp_config_dict)
+    )
+
+
 class ParallelSUMORewardCalculator:
     """
     并行SUMO reward计算器
@@ -363,6 +498,51 @@ class ParallelSUMORewardCalculator:
             rewards.append(result.reward)
 
         return rewards
+
+    def calculate_batch_relative_baseline(
+        self,
+        prompts: List[str],
+        outputs: List[str],
+        state_files: List[str],
+        config: Any,
+        mp_config: Any = None
+    ) -> Tuple[List[float], List[Dict]]:
+        """
+        批量计算相对baseline的reward
+
+        Args:
+            prompts: 输入prompt列表
+            outputs: 模型输出列表
+            state_files: 状态文件路径列表
+            config: 配置对象
+            mp_config: Max Pressure配置对象（可选）
+
+        Returns:
+            (rewards列表, 详细信息列表)
+        """
+        from multiprocessing import Pool
+
+        if mp_config is None:
+            from .max_pressure import MaxPressureConfig
+            mp_config = MaxPressureConfig()
+
+        config_dict = self._config_to_dict(config)
+        mp_config_dict = mp_config.__dict__
+
+        # 构建任务列表：(prompt, output, state_file, config_dict, mp_config_dict)
+        tasks = [
+            (prompt, output, state_file, config_dict, mp_config_dict)
+            for prompt, output, state_file in zip(prompts, outputs, state_files)
+        ]
+
+        # 使用模块级别的worker函数（可以被pickle）
+        with Pool(processes=self.max_workers) as pool:
+            results = pool.starmap(_relative_baseline_worker, tasks)
+
+        rewards = [r[0] for r in results]
+        infos = [r[1] for r in results]
+
+        return rewards, infos
 
     @staticmethod
     def _config_to_dict(config: Any) -> dict:

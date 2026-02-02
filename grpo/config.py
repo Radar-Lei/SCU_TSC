@@ -159,6 +159,7 @@ class RewardChainConfig:
     """Reward函数链配置"""
     format_weight: float = 1.0
     tsc_weight: float = 1.0
+    use_relative_baseline: bool = False  # 启用相对baseline reward
 
 
 @dataclass
@@ -184,6 +185,7 @@ class GRPOTrainingConfig:
 
     # ============== 训练参数 ==============
     num_train_epochs: int = 3
+    max_steps: Optional[int] = None  # 最大训练步数，用于调试（None表示不限制）
     warmup_steps: int = 10
     logging_steps: int = 5
     save_steps: int = 50
@@ -689,7 +691,8 @@ class TrainingConfig:
         # 构建嵌套配置
         reward_chain_data = {
             "format_weight": self.reward.chain.get("format_weight", 1.0),
-            "tsc_weight": self.reward.chain.get("tsc_weight", 1.0)
+            "tsc_weight": self.reward.chain.get("tsc_weight", 1.0),
+            "use_relative_baseline": self.reward.chain.get("use_relative_baseline", False)
         }
 
         format_reward_data = {

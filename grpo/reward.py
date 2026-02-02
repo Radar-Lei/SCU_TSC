@@ -44,6 +44,8 @@ class RewardChainConfig:
     format_invalid: float = -10.0
     # 正则表达式
     extract_regex: str = r'\{["\s]*extend["\s]*:\s*["\s]*(yes|no)["\s]*\}'
+    # 是否使用相对baseline reward
+    use_relative_baseline: bool = False
 
 
 def extract_decision(text: str, regex: str) -> Optional[str]:
@@ -374,14 +376,27 @@ def batch_compute_reward(
         tsc_state_files = [state_files[i] for i in needs_tsc_indices]
 
         try:
-            tsc_results = calculator.calculate_batch(
-                prompts=tsc_prompts,
-                outputs=tsc_outputs,
-                state_files=tsc_state_files,
-                config=sumo_config
-            )
-            for idx, reward in zip(needs_tsc_indices, tsc_results):
-                tsc_rewards[idx] = reward
+            if chain_config.use_relative_baseline:
+                # 使用相对baseline reward
+                tsc_rewards_full, _ = calculator.calculate_batch_relative_baseline(
+                    prompts=tsc_prompts,
+                    outputs=tsc_outputs,
+                    state_files=tsc_state_files,
+                    config=sumo_config,
+                    mp_config=mp_config
+                )
+                for idx, reward in zip(needs_tsc_indices, tsc_rewards_full):
+                    tsc_rewards[idx] = reward
+            else:
+                # 使用原有的绝对reward计算
+                tsc_results = calculator.calculate_batch(
+                    prompts=tsc_prompts,
+                    outputs=tsc_outputs,
+                    state_files=tsc_state_files,
+                    config=sumo_config
+                )
+                for idx, reward in zip(needs_tsc_indices, tsc_results):
+                    tsc_rewards[idx] = reward
         except RuntimeError as e:
             # SUMO计算失败，所有TSC reward为0
             print(f"Warning: TSC reward calculation failed: {e}")

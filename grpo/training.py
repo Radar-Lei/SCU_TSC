@@ -121,7 +121,8 @@ def create_reward_function(
     sumo_config,
     dataset,
     enable_baseline_tracking: bool = False,
-    mp_config = None
+    mp_config = None,
+    use_relative_baseline: bool = False
 ) -> Callable:
     """
     创建GRPOTrainer使用的reward函数
@@ -369,6 +370,10 @@ def train_grpo(
             print(f"  - 压力阈值: {baseline_config.pressure_threshold}")
             print(f"  - 允许覆盖最大绿: {baseline_config.max_green_override}")
 
+    # 打印相对baseline reward配置
+    use_relative_baseline = getattr(config.reward, 'use_relative_baseline', False)
+    print(f"相对Baseline Reward: {'启用' if use_relative_baseline else '禁用'}")
+
     print("=" * 60)
 
     # 导入依赖
@@ -410,13 +415,18 @@ def train_grpo(
     # 创建reward函数链配置
     print("\n正在配置reward函数链...")
     from types import SimpleNamespace
+
+    # 读取relative_baseline配置
+    use_relative_baseline = getattr(config.reward, 'use_relative_baseline', False)
+
     reward_chain_config = RewardChainConfig(
         format_weight=config.reward.format_weight,
         tsc_weight=config.reward.tsc_weight,
         format_strict=config.format_reward.strict,
         format_partial=config.format_reward.partial,
         format_invalid=config.format_reward.invalid,
-        extract_regex=config.format_reward.extract_regex
+        extract_regex=config.format_reward.extract_regex,
+        use_relative_baseline=use_relative_baseline
     )
 
     # 创建SUMO配置
@@ -433,7 +443,8 @@ def train_grpo(
         sumo_config=sumo_config,
         dataset=train_dataset,
         enable_baseline_tracking=getattr(config, 'enable_baseline', False),
-        mp_config=getattr(config, 'baseline_config', None)
+        mp_config=getattr(config, 'baseline_config', None),
+        use_relative_baseline=use_relative_baseline
     )
 
     # 配置GRPO训练参数

@@ -33,16 +33,17 @@ training:
     model_path: "/home/samuel/SCU_TSC/model/sft_model"  # 从SFT模型继续
     max_seq_length: 2048
     lora_rank: 32
-    learning_rate: 5.0e-6
+    learning_rate: 1.0e-5  # 从5e-6提高
     batch_size: 2
     gradient_accumulation_steps: 4
     num_generations: 4
-    temperature: 0.9
-    kl_coeff: 0.1
+    temperature: 1.2  # 提高温度增加采样多样性
+    kl_coeff: 0.05  # 从0.1降低
     max_new_tokens: 50
     top_p: 0.9
     repetition_penalty: 1.0
     num_train_epochs: 3
+    max_steps: 100  # 测试模式：100步后停止
     warmup_steps: 10
     logging_steps: 5
     save_steps: 50
@@ -75,8 +76,9 @@ simulation:
 reward:
   # Reward函数链权重
   chain:
-    format_weight: 1.0
-    tsc_weight: 1.0
+    format_weight: 0.5  # 降低format权重
+    tsc_weight: 10.0  # 大幅提高TSC权重，让交通效率主导训练
+    use_relative_baseline: true  # 启用相对baseline reward（双SUMO仿真对比）
 
   # Format Reward参数
   format:
