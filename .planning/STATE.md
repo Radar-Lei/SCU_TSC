@@ -10,30 +10,30 @@ See: .planning/PROJECT.md (updated 2025-02-02)
 ## Current Position
 
 Phase: 2 of 4 (Max Pressure算法和配置管理)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-02 — Completed 02-01-PLAN.md (Max Pressure算法实现)
+Last activity: 2026-02-02 — Completed 02-02-PLAN.md (中央训练配置系统)
 
-Progress: [██░░░░░░░░░░░░░░░░░░░] 33% (1/3 plans in Phase 2)
+Progress: [█████░░░░░░░░░░░░░░░░] 67% (2/3 plans in Phase 2)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 9m 6s
-- Total execution time: 45m 34s
+- Total plans completed: 6
+- Average duration: 7m 39s
+- Total execution time: 45m 54s
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. GRPO训练核心基础设施 | 4 | 4 | 7m 48s |
-| 2. Max Pressure算法和配置管理 | 1 | 3 | 22m 0s |
+| 2. Max Pressure算法和配置管理 | 2 | 3 | 15m 27s |
 | 3. 训练流程集成 | 0 | 0 | - |
 | 4. 测试、验证和完善 | 0 | 0 | - |
 
 **Recent Trend:**
-- Last 5 plans: 9m 6s
+- Last 5 plans: 7m 39s
 - Trend: On track
 
 *Updated after each plan completion*
@@ -75,6 +75,13 @@ Recent decisions affecting current work:
 - 时间约束优先级：最小绿/最大绿时间约束优先于压力比较
 - Phase ID类型规范化：JSON字符串键转换为int，避免类型不匹配
 
+**From 02-02:**
+- 创建中央训练配置文件training_config.yaml（区别于grpo_config.yaml）
+- 配置按功能分层：training (SFT/GRPO)、simulation (SUMO)、reward (format/TSC/max_pressure)、paths、logging
+- TrainingConfig类层次结构镜像YAML嵌套结构，使用property方法提供便捷访问
+- 保持向后兼容：grpo_config.yaml继续用于数据生成，training_config.yaml用于训练
+- 配置优先级：CLI参数 > 配置文件 > 默认值
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -90,5 +97,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 02-01-PLAN.md (Max Pressure算法实现)
+Stopped at: Completed 02-02-PLAN.md (中央训练配置系统)
 Resume file: None
