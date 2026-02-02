@@ -9,10 +9,18 @@ GRPO配置模块
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 import os
 import yaml
+import warnings
+
+# 避免循环导入，只在类型注解时导入
+if TYPE_CHECKING:
+    from grpo.max_pressure import MaxPressureConfig
+
+# 实际导入MaxPressureConfig用于baseline配置
+from grpo.max_pressure import MaxPressureConfig
 
 
 @dataclass
@@ -191,6 +199,12 @@ class GRPOTrainingConfig:
     format_reward: FormatRewardConfig = field(default_factory=FormatRewardConfig)
     sumo: SUMOConfig = field(default_factory=SUMOConfig)
 
+    # ============== Baseline配置 ==============
+    # 启用Max Pressure baseline追踪
+    enable_baseline: bool = False
+    # Max Pressure baseline配置（使用Any避免循环导入）
+    baseline_config: "MaxPressureConfig" = field(default_factory=MaxPressureConfig)
+
     def __post_init__(self):
         """参数验证"""
         # 验证数值范围
@@ -222,6 +236,18 @@ class GRPOTrainingConfig:
         if not (0 <= self.repetition_penalty <= 2):
             raise ValueError(f"grpo.repetition_penalty必须在[0, 2]范围内，当前值: {self.repetition_penalty}")
 
+        # Baseline配置验证
+        if self.enable_baseline and self.baseline_config is None:
+            warnings.warn(
+                "enable_baseline=True但baseline_config为None，baseline功能可能无法正常工作",
+                UserWarning
+            )
+
+        if self.baseline_config is not None and not isinstance(self.baseline_config, MaxPressureConfig):
+            raise ValueError(
+                f"baseline_config必须是MaxPressureConfig实例，当前类型: {type(self.baseline_config)}"
+            )
+
         # 确保输出目录存在
         os.makedirs(self.output_dir, exist_ok=True)
 
@@ -248,10 +274,21 @@ class GRPOTrainingConfig:
         format_data = data.pop('format_reward', {})
         sumo_data = data.pop('sumo', {})
 
+        # 处理baseline配置
+        # 从reward.max_pressure中提取配置
+        max_pressure_data = reward_data.get('max_pressure', {})
+        enable_baseline = max_pressure_data.get('enabled', False)
+
+        # 动态导入MaxPressureConfig避免循环依赖
+        from grpo.max_pressure import MaxPressureConfig
+        baseline_config = MaxPressureConfig(**max_pressure_data)
+
         return cls(
             reward=RewardChainConfig(**reward_data),
             format_reward=FormatRewardConfig(**format_data),
             sumo=SUMOConfig(**sumo_data),
+            enable_baseline=enable_baseline,
+            baseline_config=baseline_config,
             **data
         )
 
