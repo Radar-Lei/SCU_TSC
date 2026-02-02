@@ -261,7 +261,7 @@ fi
 echo ''
 echo -e '\033[0;34m[Step 4/4]\033[0m GRPO训练...'
 if (
-    python -m grpo.grpo_training
+    python -m grpo.training
 ); then
     echo -e '\033[0;32m✓ Step 4/4 完成\033[0m'
 else
