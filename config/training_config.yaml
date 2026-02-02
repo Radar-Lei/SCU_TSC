@@ -86,8 +86,9 @@ reward:
   tsc:
     reward_scale: 10.0
 
-  # Max Pressure配置（预留）
+  # Max Pressure配置
   max_pressure:
+    enabled: true  # 启用baseline追踪
     min_green_offset: 0.0
     max_green_override: false
     pressure_threshold: 0.0
