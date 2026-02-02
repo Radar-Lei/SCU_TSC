@@ -1,0 +1,83 @@
+# 测试专用训练配置
+# 用于小规模端到端集成测试
+
+training:
+  # SFT训练配置
+  sft:
+    model_name: "unsloth/Qwen2.5-0.5B-Instruct"
+    max_seq_length: 2048
+    lora_rank: 16  # 降低秩以加快测试
+    num_epochs: 1  # 测试只训练1个epoch
+    batch_size: 2
+    gradient_accumulation_steps: 2
+    learning_rate: 2e-4
+    logging_steps: 2
+    save_steps: 10
+    eval_percent: 0.1
+    eval_limit: 5  # 只用5条数据做验证
+    eval_steps: 5
+    warmup_steps: 2
+    optim: "adamw_8bit"
+    weight_decay: 0.001
+    lr_scheduler_type: "linear"
+    seed: 42
+
+  # GRPO训练配置
+  grpo:
+    model_name: "unsloth/Qwen2.5-0.5B-Instruct"
+    max_seq_length: 2048
+    lora_rank: 16
+    num_epochs: 1  # 测试只训练1个epoch
+    batch_size: 2
+    gradient_accumulation_steps: 2
+    learning_rate: 1e-5
+    logging_steps: 2
+    save_steps: 10
+    warmup_steps: 2
+    optim: "adamw_8bit"
+    weight_decay: 0.01
+    seed: 42
+
+    # GRPO特定参数
+    num_generations: 2  # 减少候选数以加快测试
+    temperature: 0.7
+    max_new_tokens: 64
+    top_p: 0.9
+    repetition_penalty: 1.0
+    kl_coeff: 0.1
+
+    # Reward函数权重
+    format_weight: 1.0
+    tsc_weight: 1.0
+    format_reward:
+      strict: 1.0
+      partial: -0.5
+      invalid: -10.0
+      extract_regex: '\{[^}]*"extend"\s*:\s*"(yes|no)"'
+
+    # SUMO配置
+    max_workers: 1  # 测试只用1个worker
+    extend_seconds: 5
+    reward_scale: 10.0
+    port_range: [10000, 60000]
+
+# 路径配置
+paths:
+  grpo_dataset_dir: "tests/fixtures/testdata"
+  grpo_dataset_file: "tests/fixtures/testdata/small_grpo_dataset.json"
+  sft_dataset_dir: "tests/fixtures/testdata"
+  sft_dataset_file: "tests/fixtures/testdata/small_sft_dataset.json"
+  sft_model_dir: "tests/output/test_sft_model"
+  grpo_model_dir: "tests/output/test_grpo_model"
+  sumo_states_dir: "tests/fixtures/sumo_states"
+
+# SUMO仿真配置
+simulation:
+  time_step: 1.0
+  extend_seconds: 5
+  sumocfg_path: null  # 自动推断
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
