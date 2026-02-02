@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: GRPO训练核心基础设施** - 建立GRPO训练脚本和reward函数框架
 - [x] **Phase 2: Max Pressure算法和配置管理** - 实现baseline算法和配置系统
-- [ ] **Phase 3: 训练流程集成** - 完善端到端训练流程和数据验证
+- [x] **Phase 3: 训练流程集成** - 完善端到端训练流程和数据验证
 - [ ] **Phase 4: 测试、验证和完善** - 通过单元测试和集成测试确保系统稳定性
 
 ## Phase Details
@@ -67,9 +67,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — 完善docker/publish.sh，添加失败检测、依赖检查和训练摘要
-- [ ] 03-02-PLAN.md — 实现数据验证脚本，检查GRPO/SFT数据集和SUMO状态文件
-- [ ] 03-03-PLAN.md — 将数据验证步骤集成到publish.sh训练流程中
+- [x] 03-01: 完善docker/publish.sh，添加失败检测、依赖检查和训练摘要
+- [x] 03-02: 实现数据验证脚本，检查GRPO/SFT数据集和SUMO状态文件
+- [x] 03-03: 将数据验证步骤集成到publish.sh训练流程中
 
 ### Phase 4: 测试、验证和完善
 **Goal**: 通过单元测试和集成测试验证系统各组件正确性，确保端到端流程稳定运行
@@ -95,5 +95,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. GRPO训练核心基础设施 | 4/4 | ✓ Complete | 2025-02-02 |
 | 2. Max Pressure算法和配置管理 | 3/3 | ✓ Complete | 2026-02-02 |
-| 3. 训练流程集成 | 0/3 | Not started | - |
+| 3. 训练流程集成 | 3/3 | ✓ Complete | 2026-02-02 |
 | 4. 测试、验证和完善 | 0/2 | Not started | - |
