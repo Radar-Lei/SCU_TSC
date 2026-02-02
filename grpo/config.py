@@ -2,13 +2,15 @@
 """
 GRPO配置模块
 
-包含两个配置类：
+包含多个配置类：
 1. GRPOConfig: 数据集生成配置（原有的）
-2. GRPOTrainingConfig: GRPO训练配置（新增）
+2. GRPOTrainingConfig: GRPO训练配置（用于grpo_config.yaml）
+3. TrainingConfig: 中央训练配置（用于training_config.yaml）
 """
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
+from pathlib import Path
 import os
 import yaml
 
@@ -305,4 +307,272 @@ def load_config(path: str) -> GRPOTrainingConfig:
         GRPOTrainingConfig实例
     """
     return GRPOTrainingConfig.from_yaml(path)
+
+
+# ============== 中央训练配置类 ==============
+
+@dataclass
+class SFTTrainingConfig:
+    """SFT训练配置"""
+
+    # ============== 模型配置 ==============
+    model_name: str = "unsloth/Qwen2.5-0.5B-Instruct"
+    max_seq_length: int = 2048
+    lora_rank: int = 32
+
+    # ============== 训练参数 ==============
+    num_epochs: int = 3
+    batch_size: int = 2
+    gradient_accumulation_steps: int = 4
+    learning_rate: float = 2.0e-4
+    max_steps: Optional[int] = None
+    warmup_steps: int = 5
+    optim: str = "adamw_8bit"
+    weight_decay: float = 0.001
+    lr_scheduler_type: str = "linear"
+    seed: int = 3407
+
+    # ============== 日志和保存 ==============
+    logging_steps: int = 5
+    save_steps: int = 50
+
+    # ============== 评估参数 ==============
+    eval_percent: float = 0.05
+    eval_limit: int = 100
+    eval_steps: int = 30
+
+
+@dataclass
+class SimulationConfig:
+    """SUMO仿真配置"""
+
+    # 时间参数
+    time_step: float = 1.0
+    max_time: int = 3600
+    warmup_steps: int = 300
+
+    # 绿灯时间参数
+    extend_seconds: int = 5
+    min_green_time: float = 10.0
+    max_green_time: float = 60.0
+    min_green_offset_range: float = 2.0
+    max_green_offset_range: float = 5.0
+    default_min_green: float = 10.0
+    default_max_green: float = 60.0
+
+    # 并行参数
+    max_workers: int = 4
+    port_range: List[int] = field(default_factory=lambda: [10000, 60000])
+
+
+@dataclass
+class ScenariosConfig:
+    """场景配置"""
+    scenarios_dir: str = "/home/samuel/SCU_TSC/sumo_simulation/environments"
+    num_workers: int = 0  # 0表示使用CPU核心数-1
+
+
+@dataclass
+class MaxPressureConfig:
+    """Max Pressure配置（预留）"""
+    min_green_offset: float = 0.0
+    max_green_override: bool = False
+    pressure_threshold: float = 0.0
+
+
+@dataclass
+class FormatRewardSectionConfig:
+    """Format Reward配置段"""
+    strict: float = 1.0
+    partial: float = -0.5
+    invalid: float = -10.0
+    extract_regex: str = r'\{["\s]*extend["\s]*:\s*["\s]*(yes|no)["\s]*(?:,|\})'
+
+
+@dataclass
+class TSCRewardSectionConfig:
+    """TSC Reward配置段"""
+    reward_scale: float = 10.0
+
+
+@dataclass
+class RewardSectionConfig:
+    """Reward配置段"""
+    chain: Dict[str, float] = field(default_factory=lambda: {"format_weight": 1.0, "tsc_weight": 1.0})
+    format: FormatRewardSectionConfig = field(default_factory=FormatRewardSectionConfig)
+    tsc: TSCRewardSectionConfig = field(default_factory=TSCRewardSectionConfig)
+    max_pressure: MaxPressureConfig = field(default_factory=MaxPressureConfig)
+
+
+@dataclass
+class PathsConfig:
+    """路径配置"""
+    data_dir: str = "/home/samuel/SCU_TSC/data"
+    grpo_dataset_dir: str = "/home/samuel/SCU_TSC/data/grpo_datasets"
+    sft_dataset_dir: str = "/home/samuel/SCU_TSC/data/sft_datasets"
+    sft_model_dir: str = "/home/samuel/SCU_TSC/model/sft_model"
+    grpo_model_dir: str = "/home/samuel/SCU_TSC/model/grpo_model"
+    grpo_config: str = "/home/samuel/SCU_TSC/config/grpo_config.yaml"
+
+
+@dataclass
+class LoggingConfig:
+    """日志配置"""
+    use_wandb: bool = False
+    wandb_project: str = "scu-tsc-grpo"
+    wandb_run_name: Optional[str] = None
+
+
+@dataclass
+class TrainingConfig:
+    """中央训练配置类
+
+    从training_config.yaml加载所有训练、仿真、reward和路径配置
+    """
+
+    # 原始数据（保留以便访问完整配置）
+    training: Dict[str, Any]
+    simulation: Dict[str, Any]
+    reward: RewardSectionConfig
+    paths: PathsConfig
+    logging: LoggingConfig
+
+    def __post_init__(self):
+        """初始化后处理"""
+        # 确保路径配置是PathsConfig实例
+        if not isinstance(self.paths, PathsConfig):
+            self.paths = PathsConfig(**self.paths)
+
+        # 确保日志配置是LoggingConfig实例
+        if not isinstance(self.logging, LoggingConfig):
+            # 处理wandb_run_name为null的情况
+            if isinstance(self.logging, dict):
+                if self.logging.get('wandb_run_name') == 'null':
+                    self.logging['wandb_run_name'] = None
+            self.logging = LoggingConfig(**self.logging)
+
+        # 确保reward配置是RewardSectionConfig实例
+        if not isinstance(self.reward, RewardSectionConfig):
+            reward_data = self.reward
+            if isinstance(reward_data, dict):
+                format_data = reward_data.get('format', {})
+                tsc_data = reward_data.get('tsc', {})
+                max_pressure_data = reward_data.get('max_pressure', {})
+                self.reward = RewardSectionConfig(
+                    chain=reward_data.get('chain', {"format_weight": 1.0, "tsc_weight": 1.0}),
+                    format=FormatRewardSectionConfig(**format_data),
+                    tsc=TSCRewardSectionConfig(**tsc_data),
+                    max_pressure=MaxPressureConfig(**max_pressure_data)
+                )
+
+    @classmethod
+    def from_yaml(cls, path: str) -> "TrainingConfig":
+        """
+        从training_config.yaml加载配置
+
+        Args:
+            path: YAML配置文件路径
+
+        Returns:
+            TrainingConfig实例
+        """
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+
+        # 提取各段
+        training_data = data.get('training', {})
+        simulation_data = data.get('simulation', {})
+        reward_data = data.get('reward', {})
+        paths_data = data.get('paths', {})
+        logging_data = data.get('logging', {})
+
+        # 构建paths配置
+        paths_config = PathsConfig(**paths_data)
+
+        # 构建logging配置
+        if logging_data.get('wandb_run_name') == 'null':
+            logging_data['wandb_run_name'] = None
+        logging_config = LoggingConfig(**logging_data)
+
+        # 构建reward配置
+        format_data = reward_data.get('format', {})
+        tsc_data = reward_data.get('tsc', {})
+        max_pressure_data = reward_data.get('max_pressure', {})
+        reward_config = RewardSectionConfig(
+            chain=reward_data.get('chain', {"format_weight": 1.0, "tsc_weight": 1.0}),
+            format=FormatRewardSectionConfig(**format_data),
+            tsc=TSCRewardSectionConfig(**tsc_data),
+            max_pressure=MaxPressureConfig(**max_pressure_data)
+        )
+
+        return cls(
+            training=training_data,
+            simulation=simulation_data,
+            reward=reward_config,
+            paths=paths_config,
+            logging=logging_config
+        )
+
+    @property
+    def sft(self) -> SFTTrainingConfig:
+        """返回SFT配置"""
+        sft_data = self.training.get('sft', {})
+        return SFTTrainingConfig(**sft_data)
+
+    @property
+    def grpo(self) -> GRPOTrainingConfig:
+        """返回GRPO配置（转换为GRPOTrainingConfig实例）"""
+        grpo_data = self.training.get('grpo', {})
+
+        # 构建嵌套配置
+        reward_chain_data = {
+            "format_weight": self.reward.chain.get("format_weight", 1.0),
+            "tsc_weight": self.reward.chain.get("tsc_weight", 1.0)
+        }
+
+        format_reward_data = {
+            "strict": self.reward.format.strict,
+            "partial": self.reward.format.partial,
+            "invalid": self.reward.format.invalid,
+            "extract_regex": self.reward.format.extract_regex
+        }
+
+        sumo_data = {
+            "max_workers": self.simulation.get('sumo', {}).get('max_workers', 4),
+            "port_range": self.simulation.get('sumo', {}).get('port_range', [10000, 60000]),
+            "extend_seconds": self.simulation.get('sumo', {}).get('extend_seconds', 5),
+            "reward_scale": self.reward.tsc.reward_scale
+        }
+
+        return GRPOTrainingConfig(
+            reward=RewardChainConfig(**reward_chain_data),
+            format_reward=FormatRewardConfig(**format_reward_data),
+            sumo=SUMOConfig(**sumo_data),
+            **grpo_data
+        )
+
+    @property
+    def sumo(self) -> SimulationConfig:
+        """返回SUMO仿真配置"""
+        sumo_data = self.simulation.get('sumo', {})
+        return SimulationConfig(**sumo_data)
+
+    @property
+    def scenarios(self) -> ScenariosConfig:
+        """返回场景配置"""
+        scenarios_data = self.simulation.get('scenarios', {})
+        return ScenariosConfig(**scenarios_data)
+
+
+def load_training_config(path: str = "config/training_config.yaml") -> TrainingConfig:
+    """
+    便捷函数：加载中央训练配置
+
+    Args:
+        path: training_config.yaml路径
+
+    Returns:
+        TrainingConfig实例
+    """
+    return TrainingConfig.from_yaml(path)
 
