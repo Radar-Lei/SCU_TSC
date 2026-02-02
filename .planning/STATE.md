@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2025-02-02)
 
 **Core value:** 模型能够根据SUMO仿真状态的相位排队信息，准确判断是否延长当前绿灯相位，以最小化整个交叉口的排队车辆数。
-**Current focus:** Phase 4: 测试、验证和完善
+**Current focus:** Phase 5: Max Pressure Baseline集成
 
 ## Current Position
 
-Phase: 4 of 4 (测试、验证和完善)
-Plan: 2 of 2 in current phase
-Status: Phase 4 complete ✓
-Last activity: 2026-02-02 — Completed Phase 4 (测试、验证和完善)
+Phase: 5 of 5 (Max Pressure Baseline集成)
+Plan: 1 of 1 in current phase
+Status: In progress
+Last activity: 2026-02-02 — Executing 05-01-PLAN.md (Max Pressure Baseline集成到Reward计算)
 
-Progress: [████████████████████] 100% (13/13 total plans, 2/2 in Phase 4)
+Progress: [████░░░░░░░░░░░░░░] 92% (14/15 total plans, 1/1 in Phase 5)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
-- Average duration: 8m 5s
-- Total execution time: 1h 45m
+- Total plans completed: 14
+- Average duration: 7m 52s
+- Total execution time: 1h 47m
 
 **By Phase:**
 
@@ -31,6 +31,7 @@ Progress: [████████████████████] 100% (1
 | 2. Max Pressure算法和配置管理 | 3 | 3 | 5m 16s |
 | 3. 训练流程集成 | 3 | 3 | 4m 25s |
 | 4. 测试、验证和完善 | 2 | 2 | 13m 30s |
+| 5. Max Pressure Baseline集成 | 1 | 1 | 2m 0s |
 
 **Recent Trend:**
 - Last 5 plans: 9m 6s
@@ -128,6 +129,13 @@ Recent decisions affecting current work:
 - 集成测试执行自动化脚本：scripts/run_integration_test.sh一键执行数据准备、测试运行、结果验证、临时文件清理
 - 辅助测试独立运行：格式验证、reward统计、推理测试共享训练输出，不重复训练
 
+**From 05-01:**
+- Baseline比较时机：在format_reward计算后、TSC reward计算前进行baseline决策，利用format验证结果提取模型决策，避免在format无效时进行不必要的baseline计算
+- 参数传递策略：compute_reward()接受单个时间参数，batch_compute_reward()接受时间参数列表，保持API一致性
+- 错误处理策略：baseline计算失败时设置baseline_info = {"baseline_error": str(e)}，不抛出异常或中断reward计算
+- 统计信息输出：通过print()输出baseline准确率，不扩展RewardStats dataclass，最小化对现有代码的影响
+- 配置传递：接受mp_config参数，为None时使用默认配置MaxPressureConfig()，提供灵活性同时保持易用性
+
 ### Pending Todos
 
 [From .planning/todos/pending/ — ideas captured during sessions]
@@ -145,5 +153,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 04-02-PLAN.md (端到端集成测试)
+Stopped at: Completed 05-01-PLAN.md (Max Pressure Baseline集成到Reward计算)
 Resume file: None
